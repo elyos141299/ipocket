@@ -323,13 +323,21 @@ class _StatusScreenState extends State<StatusScreen> {
   }
 
   Widget _usageCard(BuildContext context, DeviceStatus s) {
-    final totalMonthly = (s.monthlySent ?? 0) + (s.monthlyReceived ?? 0);
     final hasMonthly = s.monthlySent != null || s.monthlyReceived != null;
+    final totalMonthly = (s.monthlySent ?? 0) + (s.monthlyReceived ?? 0);
+    final hasSession = s.txBytes != null || s.rxBytes != null;
+    final totalSession = (s.txBytes ?? 0) + (s.rxBytes ?? 0);
     // Perangkat user tidak mengatur batas data: ring digambar
     // proporsional terhadap patokan tampilan 10 GB (lihat README).
+    // Bila data bulanan (data_counter) kosong — seperti terbukti di
+    // perangkat user — lingkaran menampilkan total SESI berjalan
+    // (realtime_tx_bytes + realtime_rx_bytes) dengan label jujur.
     const quotaBytes = 10 * 1024 * 1024 * 1024;
-    final fraction =
-        hasMonthly ? (totalMonthly / quotaBytes).clamp(0.0, 1.0) : 0.0;
+    final int? displayTotal =
+        hasMonthly ? totalMonthly : (hasSession ? totalSession : null);
+    final fraction = displayTotal == null
+        ? 0.0
+        : (displayTotal / quotaBytes).clamp(0.0, 1.0);
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -344,7 +352,7 @@ class _StatusScreenState extends State<StatusScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: <Widget>[
                     Text(
-                      hasMonthly ? _fmtBytes(totalMonthly) : '—',
+                      displayTotal == null ? '—' : _fmtBytes(displayTotal),
                       style: const TextStyle(
                         fontSize: 30,
                         fontWeight: FontWeight.bold,
@@ -352,14 +360,17 @@ class _StatusScreenState extends State<StatusScreen> {
                       ),
                     ),
                     const SizedBox(height: 2),
-                    const Text(
-                      'Pemakaian Bulan Ini',
-                      style: TextStyle(color: Colors.black54),
+                    Text(
+                      hasMonthly ? 'Pemakaian Bulan Ini' : 'Total Sesi Ini',
+                      style: const TextStyle(color: Colors.black54),
                     ),
                     const SizedBox(height: 2),
-                    const Text(
-                      'Ring: patokan 10 GB',
-                      style: TextStyle(color: Colors.black38, fontSize: 11),
+                    Text(
+                      hasMonthly
+                          ? 'Ring: patokan 10 GB'
+                          : 'data bulanan belum terbaca dari perangkat',
+                      style:
+                          const TextStyle(color: Colors.black38, fontSize: 11),
                     ),
                   ],
                 ),
@@ -417,6 +428,14 @@ class _StatusScreenState extends State<StatusScreen> {
         ? null
         : (wifiCount ?? 0) + (lanCount ?? 0);
     final capTotal = state.smsCapacity?.total;
+    // Baterai: persen asli (battery_vol_percent) hanya bila terisi;
+    // selain itu tampilkan teks LEVEL dari battery_pers (skala 0–3,
+    // 3 = Penuh) — battery_pers terbukti BUKAN persen.
+    final batteryValue = s.batteryPercent != null
+        ? '${s.batteryPercent}%'
+        : (s.batteryLevelLabel ?? '—');
+    final batteryLabel =
+        s.batteryCharging == true ? 'Battery · Mengisi' : 'Battery';
     return GridView.count(
       crossAxisCount: 2,
       shrinkWrap: true,
@@ -427,12 +446,8 @@ class _StatusScreenState extends State<StatusScreen> {
       children: <Widget>[
         _tile(
           icon: _batteryIcon(s),
-          value: s.batteryPercent == null ? '—' : '${s.batteryPercent}%',
-          label: s.batteryCharging == null
-              ? 'Battery'
-              : (s.batteryCharging!
-                  ? 'Battery • mengisi daya'
-                  : 'Battery'),
+          value: batteryValue,
+          label: batteryLabel,
         ),
         _tile(
           icon: Icons.sms,
@@ -459,14 +474,36 @@ class _StatusScreenState extends State<StatusScreen> {
   IconData _batteryIcon(DeviceStatus s) {
     if (s.batteryCharging == true) return Icons.battery_charging_full;
     final p = s.batteryPercent;
-    if (p == null) return Icons.battery_unknown;
-    if (p >= 90) return Icons.battery_full;
-    if (p >= 70) return Icons.battery_5_bar;
-    if (p >= 50) return Icons.battery_4_bar;
-    if (p >= 30) return Icons.battery_3_bar;
-    if (p >= 15) return Icons.battery_2_bar;
-    if (p > 0) return Icons.battery_1_bar;
+    if (p != null) {
+      if (p >= 90) return Icons.battery_full;
+      if (p >= 70) return Icons.battery_5_bar;
+      if (p >= 50) return Icons.battery_4_bar;
+      if (p >= 30) return Icons.battery_3_bar;
+      if (p >= 15) return Icons.battery_2_bar;
+      if (p > 0) return Icons.battery_1_bar;
+      return Icons.battery_0_bar;
+    }
+    // Tanpa persen asli: ikon mengikuti level 0–3 (battery_pers).
+    final l = s.batteryLevel;
+    if (l == null) return Icons.battery_unknown;
+    if (l >= 3) return Icons.battery_full;
+    if (l == 2) return Icons.battery_5_bar;
+    if (l == 1) return Icons.battery_2_bar;
     return Icons.battery_0_bar;
+  }
+
+  /// Teks baterai untuk baris detail: persen asli bila ada;
+  /// selain itu "Level 3 (Penuh)" dari battery_pers (bukan "3%").
+  String _batteryDetailText(DeviceStatus s) {
+    final charging = s.batteryCharging == true ? ' · Mengisi' : '';
+    final p = s.batteryPercent;
+    if (p != null) return '$p%$charging';
+    final l = s.batteryLevel;
+    final label = s.batteryLevelLabel;
+    if (l == null || label == null) return '—';
+    // Di luar skala 0–3, label sudah berbentuk "Level N".
+    if (l > 3) return '$label$charging';
+    return 'Level $l ($label)$charging';
   }
 
   Widget _tile({
@@ -515,6 +552,7 @@ class _StatusScreenState extends State<StatusScreen> {
             : '${s.signalDbm} dBm (${s.signalDbmSource ?? '?'}) • '
                 'bar ${s.signalBar ?? '—'}/5',
       ],
+      <String>['Baterai', _batteryDetailText(s)],
       <String>['Waktu koneksi (sesi)', _fmtUptime(s.uptimeSeconds)],
       <String>[
         'Tersambung bulan ini',

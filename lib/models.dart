@@ -65,9 +65,36 @@ class DeviceStatus {
   /// Nama field asal nilai dBm (untuk label di UI).
   String? get signalDbmSource => _signalPick().source;
 
-  /// Persen baterai: battery_vol_percent, fallback battery_pers.
-  int? get batteryPercent =>
-      _i('battery_vol_percent') ?? _i('battery_pers');
+  /// Persen baterai asli — HANYA dari battery_vol_percent, dan
+  /// hanya bila field itu terisi. battery_pers BUKAN persen
+  /// (lihat [batteryLevel]).
+  int? get batteryPercent => _i('battery_vol_percent');
+
+  /// Level baterai dari battery_pers — skala 0–3, BUKAN persen.
+  /// Bukti uji perangkat asli v1.0 (23 Nov 2026): baterai fisik
+  /// PENUH terbaca "3" → 3 = penuh. battery_vol_percent kosong
+  /// di perangkat ini, jadi level inilah angka baterai yang ada.
+  int? get batteryLevel => _i('battery_pers');
+
+  /// Label teks [batteryLevel]: 3 "Penuh", 2 "Tinggi", 1 "Rendah",
+  /// 0 "Habis"; nilai di luar skala 0–3 ditampilkan apa adanya
+  /// sebagai "Level N".
+  String? get batteryLevelLabel {
+    final l = batteryLevel;
+    if (l == null) return null;
+    switch (l) {
+      case 3:
+        return 'Penuh';
+      case 2:
+        return 'Tinggi';
+      case 1:
+        return 'Rendah';
+      case 0:
+        return 'Habis';
+      default:
+        return 'Level $l';
+    }
+  }
 
   bool? get batteryCharging {
     final s = _s('battery_charging');
@@ -83,9 +110,20 @@ class DeviceStatus {
   int? get realtimeTxBytes => _i('realtime_tx_bytes');
   int? get realtimeRxBytes => _i('realtime_rx_bytes');
 
-  // Alias pendek untuk UI.
-  int? get txRate => realtimeTxRate;
-  int? get rxRate => realtimeRxRate;
+  /// Kecepatan unggah hasil hitung aplikasi (byte/detik) — diisi
+  /// AppState dari selisih realtime_tx_bytes antar dua sampel
+  /// status, karena realtime_tx_rate kosong di perangkat ini.
+  /// Null = belum bisa dihitung (sampel pertama, atau counter
+  /// turun karena perangkat reboot).
+  int? computedTxRateBps;
+
+  /// Pasangan [computedTxRateBps] untuk arah unduh.
+  int? computedRxRateBps;
+
+  // Alias pendek untuk UI: utamakan angka dari perangkat
+  // (realtime_*_rate); bila kosong, pakai hasil hitung aplikasi.
+  int? get txRate => realtimeTxRate ?? computedTxRateBps;
+  int? get rxRate => realtimeRxRate ?? computedRxRateBps;
   int? get txBytes => realtimeTxBytes;
   int? get rxBytes => realtimeRxBytes;
 
@@ -183,10 +221,13 @@ class DeviceStatus {
 
 /// Kapasitas SMS dari cmd=sms_capacity_info.
 ///
-/// Kontrak hanya memastikan `sms_nv_total` dan keluarga `sms_nv_rev*`;
-/// pemetaan "terpakai" WebUI (nvUsed) tidak menyebut nama field persis,
-/// jadi parse-nya toleran: pakai sms_nv_used bila ada; bila tidak,
-/// jumlahkan nilai numerik sms_nv_rev* + sms_nv_send* + sms_nv_draft*.
+/// TERKONFIRMASI dari uji perangkat asli v1.0: perangkat mengirim
+/// sms_nv_total (=20), sms_nv_rev_total, sms_nv_send_total, dan
+/// sms_nv_draftbox_total (plus padanan sms_sim_*). Terpakai persis
+/// = rev + send + draftbox (penyimpanan perangkat/nv). Bila ketiga
+/// field *_total itu absen, jatuh ke heuristik lama: sms_nv_used
+/// bila ada; bila tidak, jumlahkan nilai numerik sms_nv_rev* +
+/// sms_nv_send* + sms_nv_draft*.
 class SmsCapacity {
   SmsCapacity({this.total, this.used, required this.raw});
 
@@ -198,7 +239,16 @@ class SmsCapacity {
     }
 
     final total = dyn(raw['sms_nv_total']);
-    var used = dyn(raw['sms_nv_used']);
+    // Jalur persis (terkonfirmasi perangkat asli): jumlahkan tiga
+    // field *_total kotak pesan perangkat.
+    final revTotal = dyn(raw['sms_nv_rev_total']);
+    final sendTotal = dyn(raw['sms_nv_send_total']);
+    final draftTotal = dyn(raw['sms_nv_draftbox_total']);
+    int? used;
+    if (revTotal != null || sendTotal != null || draftTotal != null) {
+      used = (revTotal ?? 0) + (sendTotal ?? 0) + (draftTotal ?? 0);
+    }
+    used ??= dyn(raw['sms_nv_used']);
     if (used == null) {
       var sum = 0;
       var found = false;
@@ -222,7 +272,8 @@ class SmsCapacity {
   /// Total slot SMS di perangkat (sms_nv_total).
   final int? total;
 
-  /// Perkiraan jumlah SMS tersimpan (lihat catatan parse di atas).
+  /// Jumlah SMS tersimpan di perangkat (lihat catatan parse di
+  /// atas — persis bila field *_total tersedia).
   final int? used;
 
   final Map<String, dynamic> raw;

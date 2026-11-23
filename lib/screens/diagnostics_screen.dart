@@ -48,6 +48,12 @@ class DiagnosticsScreen extends StatelessWidget {
                     icon: const Icon(Icons.travel_explore),
                     label: const Text('Penemuan API Final'),
                   ),
+                  FilledButton.icon(
+                    onPressed:
+                        state.busy ? null : () => state.runFieldProbe(),
+                    icon: const Icon(Icons.radar),
+                    label: const Text('Probe Field Kosong'),
+                  ),
                   OutlinedButton.icon(
                     onPressed: () async {
                       await Clipboard.setData(ClipboardData(text: text));

@@ -334,6 +334,71 @@ class ReqprocClient {
     return SmsCapacity.fromJson(res);
   }
 
+  /// Probe Field Kosong (v1.1): dari uji perangkat asli v1.0,
+  /// beberapa field kembali "" dari panggilan status gabungan
+  /// (data_counter, station_list, lan_station_list, ssid,
+  /// realtime_tx_rate/rx_rate). Probe ini meminta field-field itu
+  /// satu per satu / dalam grup kecil ala WebUI untuk melihat
+  /// bentuk respons aslinya. Semua respons mentah tercatat di log
+  /// diagnostik lewat [procGet] (dipotong ±2000 karakter per entri),
+  /// dibungkus penanda DIMULAI/SELESAI. Kegagalan satu langkah tidak
+  /// menghentikan langkah berikutnya.
+  Future<void> runFieldProbe() async {
+    log.addNote('=== PROBE FIELD KOSONG DIMULAI ===');
+    final probes = <({String label, Map<String, String> params})>[
+      (
+        label: 'data_counter sendiri (multi_data=1)',
+        params: <String, String>{'cmd': 'data_counter', 'multi_data': '1'},
+      ),
+      (
+        label: 'station_list sendiri (tanpa multi_data)',
+        params: <String, String>{'cmd': 'station_list'},
+      ),
+      (
+        label: 'lan_station_list sendiri (tanpa multi_data)',
+        params: <String, String>{'cmd': 'lan_station_list'},
+      ),
+      (
+        label: 'station_list + lan_station_list (multi_data=1)',
+        params: <String, String>{
+          'cmd': 'station_list,lan_station_list',
+          'multi_data': '1',
+        },
+      ),
+      (
+        label: 'ssid sendiri (tanpa multi_data)',
+        params: <String, String>{'cmd': 'ssid'},
+      ),
+      (
+        label: 'grup WiFi SSID1,HideSSID,AuthMode,MAX_Station_num '
+            '(multi_data=1)',
+        params: <String, String>{
+          'cmd': 'SSID1,HideSSID,AuthMode,MAX_Station_num',
+          'multi_data': '1',
+        },
+      ),
+      (
+        label: 'data_counter + counter sesi (multi_data=1)',
+        params: <String, String>{
+          'cmd': 'data_counter,realtime_tx_bytes,realtime_rx_bytes,'
+              'realtime_time',
+          'multi_data': '1',
+        },
+      ),
+    ];
+    var step = 0;
+    for (final p in probes) {
+      step++;
+      log.addNote('Probe $step/${probes.length}: ${p.label}');
+      try {
+        await procGet(p.params, note: 'Probe field kosong: ${p.label}');
+      } catch (e) {
+        log.addNote('Probe $step gagal: $e');
+      }
+    }
+    log.addNote('=== PROBE FIELD KOSONG SELESAI ===');
+  }
+
   /// Urutan tes untuk layar Diagnostik versi reqproc:
   /// login → status → daftar SMS → kapasitas SMS.
   /// Mengembalikan true bila login berhasil. Semua langkah tercatat

@@ -37,6 +37,13 @@ class AppState extends ChangeNotifier {
   List<SmsMessage>? smsList;
   SmsCapacity? smsCapacity;
 
+  /// Sampel counter sesi sebelumnya — dasar hitung kecepatan ↑/↓
+  /// (realtime_tx_rate/realtime_rx_rate kosong di perangkat ini,
+  /// jadi kecepatan dihitung dari selisih byte antar-sampel).
+  int? _prevTxBytes;
+  int? _prevRxBytes;
+  DateTime? _prevSampleAt;
+
   void setGateway(String value) {
     final g = value.trim();
     gateway = g.isEmpty ? '192.168.0.1' : g;
@@ -46,6 +53,9 @@ class AppState extends ChangeNotifier {
     status = null;
     smsList = null;
     smsCapacity = null;
+    _prevTxBytes = null;
+    _prevRxBytes = null;
+    _prevSampleAt = null;
     notifyListeners();
   }
 
@@ -106,11 +116,45 @@ class AppState extends ChangeNotifier {
   Future<void> refreshStatus() async {
     try {
       final rawMap = await client.getStatus();
-      status = DeviceStatus(rawMap);
+      final parsed = DeviceStatus(rawMap);
+      _hitungKecepatan(parsed);
+      status = parsed;
     } catch (e) {
       lastError = 'Gagal memuat status: $e';
     }
     notifyListeners();
+  }
+
+  /// Hitung kecepatan ↑/↓ dari selisih counter byte sesi antar
+  /// sampel: rate = (byte sekarang − byte sebelumnya) / selisih
+  /// detik, disimpan ke field computed* milik [DeviceStatus].
+  /// Sampel pertama, atau counter yang turun (perangkat reboot /
+  /// sesi mulai ulang), membiarkan rate null → UI menampilkan "—".
+  void _hitungKecepatan(DeviceStatus s) {
+    final tx = s.realtimeTxBytes;
+    final rx = s.realtimeRxBytes;
+    final prevTx = _prevTxBytes;
+    final prevRx = _prevRxBytes;
+    final prevAt = _prevSampleAt;
+    final now = DateTime.now();
+    if (tx != null &&
+        rx != null &&
+        prevTx != null &&
+        prevRx != null &&
+        prevAt != null) {
+      final dt = now.difference(prevAt).inMilliseconds / 1000.0;
+      if (dt > 0) {
+        final dTx = tx - prevTx;
+        final dRx = rx - prevRx;
+        if (dTx >= 0) s.computedTxRateBps = (dTx / dt).round();
+        if (dRx >= 0) s.computedRxRateBps = (dRx / dt).round();
+      }
+    }
+    if (tx != null && rx != null) {
+      _prevTxBytes = tx;
+      _prevRxBytes = rx;
+      _prevSampleAt = now;
+    }
   }
 
   /// Muat ulang daftar SMS + kapasitasnya.
@@ -148,6 +192,22 @@ class AppState extends ChangeNotifier {
         await refreshStatus();
         await refreshSms();
       }
+    } finally {
+      busy = false;
+      notifyListeners();
+    }
+  }
+
+  /// Jalankan Probe Field Kosong (v1.1): minta field yang kembali
+  /// kosong dari panggilan status gabungan (data_counter,
+  /// station_list, lan_station_list, ssid) satu per satu / dalam
+  /// grup kecil ala WebUI, dan catat setiap respons mentahnya ke
+  /// log diagnostik — untuk menentukan bentuk panggilan yang benar.
+  Future<void> runFieldProbe() async {
+    busy = true;
+    notifyListeners();
+    try {
+      await client.runFieldProbe();
     } finally {
       busy = false;
       notifyListeners();

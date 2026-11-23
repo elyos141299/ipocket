@@ -4,8 +4,8 @@ Aplikasi Flutter "iPocket": panel status untuk MiFi Advan iPocket MF01
 (API reqproc perangkat) — pantau sinyal, baterai, perangkat terhubung,
 dan SMS tanpa membuka browser. Spesifikasi API: `../API-CONTRACT.md`.
 
-Versi: **v1.0** — APLIKASI BENERAN: klien reqproc + dashboard
-referensi + SMS baca. Riwayat singkat: v0.2 membuktikan firmware
+Versi: **v1.1** — perbaikan dari uji perangkat asli v1.0.
+Riwayat singkat: v0.2 membuktikan firmware
 perangkat menjawab 404 untuk /goform/*; penemuan bertingkat
 (v0.2–v0.4, aplikasi membaca JS WebUI dari perangkat: index →
 main.js → com.js 211 KB) menemukan gerbang asli perangkat:
@@ -27,12 +27,50 @@ Tab Diagnostik & Pengaturan dipertahankan apa adanya — semua
 tombol tes/penemuan masih dipakai untuk verifikasi lapangan,
 dan Tes Lengkap sekarang berjalan di atas reqproc.
 
+**v1.1** (dari uji perangkat asli v1.0, 23 Nov 2026 — login,
+status, dan SMS TERBUKTI jalan; tetapi `data_counter`,
+`station_list`, `lan_station_list`, `ssid`, dan
+`realtime_tx_rate`/`realtime_rx_rate` kembali KOSONG dari
+panggilan status gabungan):
+
+1. **Probe Field Kosong** — tombol baru di tab Diagnostik:
+   meminta field-field kosong itu satu per satu / dalam grup
+   kecil ala WebUI (7 panggilan GET proc_get berurutan) dan
+   mencatat setiap respons mentahnya ke log, dibungkus penanda
+   `=== PROBE FIELD KOSONG DIMULAI/SELESAI ===`.
+2. **Kecepatan ↑/↓ dihitung aplikasi** — karena
+   `realtime_tx_rate`/`rx_rate` kosong, AppState menyimpan
+   sampel counter sebelumnya dan menghitung rate = selisih
+   `realtime_tx_bytes`/`rx_bytes` ÷ selisih detik tiap
+   refreshStatus. Sampel pertama / counter turun (reboot) →
+   rate kosong ("—").
+3. **Lingkaran data** — bila data bulanan terbaca: seperti
+   sebelumnya ("Pemakaian Bulan Ini"). Bila kosong: lingkaran
+   menampilkan total sesi (`realtime_tx_bytes` +
+   `realtime_rx_bytes`) berlabel "Total Sesi Ini" dengan
+   sublabel jujur "data bulanan belum terbaca dari perangkat".
+4. **Kapasitas SMS persis** — terpakai = `sms_nv_rev_total` +
+   `sms_nv_send_total` + `sms_nv_draftbox_total`, total =
+   `sms_nv_total` (terkonfirmasi perangkat asli: 20). Heuristik
+   lama dipertahankan sebagai fallback bila field itu absen.
+5. **Baterai: `battery_pers` adalah LEVEL, bukan persen** —
+   koreksi user dari uji v1.0: baterai fisik PENUH terbaca
+   `battery_pers="3"` (tampilan lama keliru menulis "3%").
+   Asumsi skala level **0–3** dari bukti itu: 3 = Penuh,
+   2 = Tinggi, 1 = Rendah, 0 = Habis; nilai >3 ditampilkan
+   "Level N" apa adanya. Persen asli hanya dari
+   `battery_vol_percent`, dan hanya bila field itu terisi
+   (di perangkat ini kosong). Tile Battery menampilkan teks
+   level (+ "· Mengisi" bila `battery_charging`), dan baris
+   detail menampilkan "Level 3 (Penuh)".
+
 Asumsi tampilan lingkaran data: perangkat user TIDAK mengatur
 batas data (Manajemen Data "Tidak diatur"), jadi ring digambar
 proporsional terhadap **patokan tampilan 10 GB** — angka di tengah
-lingkaran selalu total pemakaian bulan ini yang sebenarnya dari
-`data_counter` (monthlySent + monthlyReceived); patokan hanya
-mengatur seberapa penuh ring-nya.
+lingkaran adalah total pemakaian bulan ini yang sebenarnya dari
+`data_counter` (monthlySent + monthlyReceived) bila terbaca,
+atau total sesi berjalan bila data bulanan kosong (lihat poin 3
+di atas); patokan hanya mengatur seberapa penuh ring-nya.
 
 ## Struktur proyek
 
@@ -63,7 +101,7 @@ app/
     │                       # wifi), konteks ajax/cgi/api/cmd/url,
     │                       # isi set.js utuh bila < 12000 byte
     ├── models.dart         # DeviceStatus reqproc (parse toleran:
-    │                       # baterai %, sinyal per jenis jaringan,
+    │                       # baterai persen/level, sinyal per jenis jaringan,
     │                       # data_counter Map/string, station_list
     │                       # List/string) + SmsCapacity + SmsMessage
     │                       # + decode hex UTF-16BE
@@ -82,7 +120,11 @@ Tab Diagnostik adalah alat verifikasi lapangan: tombol **Jalankan
 Tes Lengkap** sekarang menjalankan urutan reqproc (login → status
 gabungan → daftar SMS → kapasitas SMS), dan semua request/respons
 mentah tercatat untuk di-screenshot dan dicocokkan dengan perangkat
-asli. Tombol kedua,
+asli. Tombol **Probe Field Kosong** (v1.1) meminta field yang
+kosong dari panggilan gabungan (`data_counter`, `station_list`,
+`lan_station_list`, `ssid`, grup `SSID1,HideSSID,AuthMode,
+MAX_Station_num`, dan kombinasi `data_counter` + counter sesi)
+satu per satu dan mencatat respons mentahnya. Tombol kedua,
 **Jalankan Penemuan API** (v0.2), membaca HTML + file JS WebUI dari
 perangkat dan mencatat kandidat endpoint asli beserta konteks
 pemanggilannya ke log yang sama. Tombol ketiga, **Penemuan API
