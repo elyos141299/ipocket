@@ -1,10 +1,8 @@
-import 'dart:convert';
-
 import 'package:flutter/foundation.dart';
 
 import 'discovery.dart';
 import 'models.dart';
-import 'zte_client.dart';
+import 'reqproc_client.dart';
 
 /// State aplikasi bersama (singleton sederhana, tanpa package tambahan).
 ///
@@ -12,7 +10,7 @@ import 'zte_client.dart';
 /// berjalan — tidak pernah ditulis ke penyimpanan permanen.
 class AppState extends ChangeNotifier {
   AppState._() {
-    client = ZteClient(gateway: gateway, log: log);
+    client = ReqprocClient(gateway: gateway, log: log);
   }
 
   static final AppState instance = AppState._();
@@ -24,24 +22,30 @@ class AppState extends ChangeNotifier {
   String adminPassword = 'admin';
 
   final DiagnosticsLog log = DiagnosticsLog();
-  late ZteClient client;
+  late ReqprocClient client;
 
-  /// 'B' atau 'A' bila login berhasil; null bila belum/gagal.
-  String? loginGeneration;
+  /// True setelah login reqproc berhasil (result "0"/"4").
+  bool loggedIn = false;
+
+  /// Pesan khusus hasil login terakhir (Bahasa Indonesia) untuk
+  /// ditampilkan di kartu sambutan; null bila tidak ada.
+  String? loginMessage;
+
   bool busy = false;
   String? lastError;
   DeviceStatus? status;
   List<SmsMessage>? smsList;
-
-  /// Hasil mentah sms_page_data bila strukturnya tidak bisa di-parse.
-  String? smsRawFallback;
+  SmsCapacity? smsCapacity;
 
   void setGateway(String value) {
     final g = value.trim();
     gateway = g.isEmpty ? '192.168.0.1' : g;
-    client = ZteClient(gateway: gateway, log: log);
-    loginGeneration = null;
+    client = ReqprocClient(gateway: gateway, log: log);
+    loggedIn = false;
+    loginMessage = null;
     status = null;
+    smsList = null;
+    smsCapacity = null;
     notifyListeners();
   }
 
@@ -50,30 +54,58 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Login (Gen B → fallback Gen A) lalu muat status.
-  Future<void> connect() async {
+  /// Login reqproc dengan sandi saat ini. Bila berhasil, langsung
+  /// muat status + SMS. Pesan kegagalan disiapkan per kasus agar
+  /// pengguna tahu persis masalahnya.
+  Future<void> login() async {
     busy = true;
+    loginMessage = null;
     lastError = null;
     notifyListeners();
     try {
-      loginGeneration = await client.login(adminPassword);
-      if (loginGeneration == null) {
-        lastError =
-            'Login gagal pada kedua generasi (B dan A). Lihat tab Diagnostik.';
-      } else {
+      final result = await client.login(adminPassword);
+      switch (result.outcome) {
+        case LoginOutcome.ok:
+          loggedIn = true;
+          loginMessage = null;
+          break;
+        case LoginOutcome.wrongPassword:
+          loggedIn = false;
+          loginMessage = 'Kata sandi salah. Periksa lagi kata sandi '
+              'admin MiFi-mu, lalu coba lagi.';
+          break;
+        case LoginOutcome.multipleUsers:
+          loggedIn = false;
+          loginMessage = 'Sudah ada pengguna lain yang sedang masuk '
+              '(misalnya halaman web MiFi masih terbuka). Tutup sesi '
+              'lain itu dulu, lalu coba lagi.';
+          break;
+        case LoginOutcome.failed:
+          loggedIn = false;
+          loginMessage = 'Login ditolak perangkat '
+              '(result=${result.rawResult ?? 'tidak dikenal'}). '
+              'Coba lagi sebentar lagi.';
+          break;
+      }
+      if (loggedIn) {
         await refreshStatus();
+        await refreshSms();
       }
     } catch (e) {
-      lastError = 'Tidak dapat menjangkau perangkat: $e';
+      loggedIn = false;
+      loginMessage = 'Tidak dapat menjangkau MiFi di $gateway. '
+          'Pastikan HP terhubung ke WiFi iPocket, lalu coba lagi.';
+      lastError = 'Login error: $e';
     } finally {
       busy = false;
       notifyListeners();
     }
   }
 
+  /// Muat ulang status gabungan (dipakai dashboard + auto-refresh).
   Future<void> refreshStatus() async {
     try {
-      final rawMap = await client.fetchStatus();
+      final rawMap = await client.getStatus();
       status = DeviceStatus(rawMap);
     } catch (e) {
       lastError = 'Gagal memuat status: $e';
@@ -81,53 +113,41 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Muat SMS: sms_data_total dulu; bila gagal/tidak ada daftar pesan,
-  /// fallback ke sms_page_data (di-parse bila bisa, mentah bila tidak).
-  Future<void> loadSms() async {
-    busy = true;
-    notifyListeners();
-    try {
-      smsRawFallback = null;
-      Map<String, dynamic>? primary;
-      try {
-        primary = await client.fetchSmsDataTotal();
-      } catch (_) {
-        primary = null; // Sudah tercatat di log — lanjut ke fallback.
-      }
-      final msgs = primary?['messages'];
-      if (msgs is List) {
-        smsList = msgs
-            .whereType<Map<String, dynamic>>()
-            .map(SmsMessage.fromJson)
-            .toList();
-      } else {
-        final res2 = await client.fetchSmsPageData();
-        final m2 = res2['messages'];
-        if (m2 is List) {
-          smsList = m2
-              .whereType<Map<String, dynamic>>()
-              .map(SmsMessage.fromJson)
-              .toList();
-        } else {
-          smsList = null;
-          smsRawFallback = const JsonEncoder.withIndent('  ').convert(res2);
-        }
-      }
-    } catch (e) {
-      lastError = 'Gagal memuat SMS: $e';
-    } finally {
-      busy = false;
+  /// Muat ulang daftar SMS + kapasitasnya.
+  Future<void> refreshSms() async {
+    final wasBusy = busy;
+    if (!wasBusy) {
+      busy = true;
       notifyListeners();
     }
+    try {
+      smsList = await client.getSmsList();
+    } catch (e) {
+      lastError = 'Gagal memuat SMS: $e';
+    }
+    try {
+      smsCapacity = await client.getSmsCapacity();
+    } catch (_) {
+      // Kapasitas hanya pelengkap — kegagalannya sudah tercatat di log
+      // dan tidak boleh menggagalkan daftar SMS.
+    }
+    if (!wasBusy) busy = false;
+    notifyListeners();
   }
 
-  /// Jalankan urutan tes lengkap dari klien, lalu segarkan status.
+  /// Jalankan urutan tes reqproc dari klien (login → status → SMS →
+  /// kapasitas), lalu segarkan data aplikasi bila login berhasil.
   Future<void> runFullTest() async {
     busy = true;
     notifyListeners();
     try {
-      await client.runFullTest(adminPassword);
-      await refreshStatus();
+      final ok = await client.runFullTest(adminPassword);
+      if (ok) {
+        loggedIn = true;
+        loginMessage = null;
+        await refreshStatus();
+        await refreshSms();
+      }
     } finally {
       busy = false;
       notifyListeners();

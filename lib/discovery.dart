@@ -1,6 +1,6 @@
 import 'package:http/http.dart' as http;
 
-import 'zte_client.dart';
+import 'reqproc_client.dart';
 
 /// Mode Penemuan API (v0.2).
 ///

@@ -1,22 +1,38 @@
 # iPocket — Struktur & Rencana Build
 
 Aplikasi Flutter "iPocket": panel status untuk MiFi Advan iPocket MF01
-(ZTE goform) — pantau sinyal, baterai, perangkat terhubung, dan SMS
-tanpa membuka browser. Spesifikasi API: `../API-CONTRACT.md`.
+(API reqproc perangkat) — pantau sinyal, baterai, perangkat terhubung,
+dan SMS tanpa membuka browser. Spesifikasi API: `../API-CONTRACT.md`.
 
-Versi: **v0.4** — penemuan API final (ambil com/set/lib/sim_device/
-net/wifi). v0.2 membuktikan firmware perangkat menjawab 404 untuk
-/goform/* dan WebUI-nya RequireJS + Knockout yang modul aplikasinya
-dimuat dinamis; v0.3 memetakan tag `<script>` index.html, mencoba
-kamus path modul umum, dan men-crawl nama modul require/define —
-hasilnya js/main.js terbaca dan membocorkan peta require.config:
-"service" → `com`, SIM/SMS → `sim_device`, jaringan → `net`, WiFi →
-`wifi`, plus petunjuk file `set` dan `lib`. v0.4 mengambil persis
-enam file layanan itu (`js/com.js`, `js/set.js`, `js/lib.js`,
-`js/sim_device.js`, `js/net.js`, `js/wifi.js`), memindai kandidat
-endpoint + konteks kata kunci pemanggilan API di dalamnya, dan
-mencatat isi `set.js` secara utuh bila kecil; lihat
-`lib/discovery.dart`.
+Versi: **v1.0** — APLIKASI BENERAN: klien reqproc + dashboard
+referensi + SMS baca. Riwayat singkat: v0.2 membuktikan firmware
+perangkat menjawab 404 untuk /goform/*; penemuan bertingkat
+(v0.2–v0.4, aplikasi membaca JS WebUI dari perangkat: index →
+main.js → com.js 211 KB) menemukan gerbang asli perangkat:
+**GET /reqproc/proc_get (cmd=…, multi_data=1)** dan
+**POST /reqproc/proc_post (goformId=…)** — kosakata cmd/goformId
+gaya ZTE, tapi path reqproc (server GoAhead). Login: POST LOGIN
+dengan sandi Base64 (PASSWORD_ENCODE=true di set.js); result
+"0"/"4" sukses, "3" sandi salah, "2" pengguna ganda. v1.0 memakai
+klien baru `lib/reqproc_client.dart` (login terstruktur, status
+gabungan persis daftar cmd WebUI, sms_data_total,
+sms_capacity_info); `lib/zte_client.dart` lama sudah dihapus.
+Tab Status menjadi dashboard ala `../UI-REFERENCE.md` (tema biru
+muda): kartu sambutan + login, header operator/jaringan/sinyal,
+lingkaran pemakaian data bulanan, kecepatan live, 4 tile
+(Battery/SMS/Clients/SD Sharing), dan detail label-nilai, dengan
+auto-refresh 15 detik selama tab tampil & sudah login. Tab SMS
+menampilkan daftar asli (baca-saja; kirim & hapus menyusul).
+Tab Diagnostik & Pengaturan dipertahankan apa adanya — semua
+tombol tes/penemuan masih dipakai untuk verifikasi lapangan,
+dan Tes Lengkap sekarang berjalan di atas reqproc.
+
+Asumsi tampilan lingkaran data: perangkat user TIDAK mengatur
+batas data (Manajemen Data "Tidak diatur"), jadi ring digambar
+proporsional terhadap **patokan tampilan 10 GB** — angka di tengah
+lingkaran selalu total pemakaian bulan ini yang sebenarnya dari
+`data_counter` (monthlySent + monthlyReceived); patokan hanya
+mengatur seberapa penuh ring-nya.
 
 ## Struktur proyek
 
@@ -30,9 +46,11 @@ app/
     ├── main.dart           # MaterialApp "iPocket" → AppShell
     ├── app_state.dart      # state bersama (gateway, password, sesi) —
     │                       # hanya di memori, tidak disimpan permanen
-    ├── zte_client.dart     # klien goform: Referer, cookie jar, login
-    │                       # Gen B (LD/RD + SHA-256) → fallback Gen A
-    │                       # (base64), status gabungan, SMS, log
+    ├── reqproc_client.dart # klien reqproc (v1.0): Referer, cookie
+    │                       # jar, login LOGIN sandi Base64 (hasil
+    │                       # terstruktur), status gabungan, SMS +
+    │                       # kapasitas, Tes Lengkap reqproc; juga
+    │                       # rumah DiagEntry/DiagnosticsLog bersama
     ├── discovery.dart      # v0.2: penemuan API — unduh HTML + file JS
     │                       # WebUI dari perangkat, pindai kandidat
     │                       # endpoint & konteks panggilan AJAX/fetch
@@ -44,20 +62,27 @@ app/
     │                       # layanan (com/set/lib/sim_device/net/
     │                       # wifi), konteks ajax/cgi/api/cmd/url,
     │                       # isi set.js utuh bila < 12000 byte
-    ├── models.dart         # DeviceStatus (parse longgar, anti-crash) +
-    │                       # SmsMessage + decode hex UTF-16BE
+    ├── models.dart         # DeviceStatus reqproc (parse toleran:
+    │                       # baterai %, sinyal per jenis jaringan,
+    │                       # data_counter Map/string, station_list
+    │                       # List/string) + SmsCapacity + SmsMessage
+    │                       # + decode hex UTF-16BE
     └── screens/
         ├── app_shell.dart        # AppBar + navigasi bawah 4 tab
-        ├── status_screen.dart    # panel koneksi (password) + status
-        ├── sms_screen.dart       # daftar SMS / fallback mentah
+        ├── status_screen.dart    # dashboard: sambutan+login, header,
+        │                       # lingkaran data bulanan, 4 tile,
+        │                       # detail, auto-refresh 15 detik
+        ├── sms_screen.dart       # daftar SMS asli + kapasitas
+        │                       # (baca-saja)
         ├── diagnostics_screen.dart # log request mentah + Tes Lengkap
         └── settings_screen.dart  # satu field gateway
 ```
 
-Tab Diagnostik adalah alat verifikasi v0: tombol **Jalankan Tes
-Lengkap** menjalankan urutan LD/RD → login Gen B → login Gen A →
-status gabungan → SMS, dan semua request/respons mentah tercatat untuk
-di-screenshot dan dicocokkan dengan perangkat asli. Tombol kedua,
+Tab Diagnostik adalah alat verifikasi lapangan: tombol **Jalankan
+Tes Lengkap** sekarang menjalankan urutan reqproc (login → status
+gabungan → daftar SMS → kapasitas SMS), dan semua request/respons
+mentah tercatat untuk di-screenshot dan dicocokkan dengan perangkat
+asli. Tombol kedua,
 **Jalankan Penemuan API** (v0.2), membaca HTML + file JS WebUI dari
 perangkat dan mencatat kandidat endpoint asli beserta konteks
 pemanggilannya ke log yang sama. Tombol ketiga, **Penemuan API

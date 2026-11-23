@@ -16,18 +16,21 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> {
   int _index = 0;
 
-  static const List<Widget> _pages = <Widget>[
-    StatusScreen(),
-    SmsScreen(),
-    DiagnosticsScreen(),
-    SettingsScreen(),
-  ];
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('iPocket')),
-      body: IndexedStack(index: _index, children: _pages),
+      body: IndexedStack(
+        index: _index,
+        children: <Widget>[
+          // `active` memberi tahu dashboard kapan tab-nya tampil,
+          // untuk menyalakan/mematikan auto-refresh 15 detik.
+          StatusScreen(active: _index == 0),
+          const SmsScreen(),
+          const DiagnosticsScreen(),
+          const SettingsScreen(),
+        ],
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
         onDestinationSelected: (i) => setState(() => _index = i),
