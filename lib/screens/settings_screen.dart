@@ -4,6 +4,7 @@ import '../app_state.dart';
 import '../theme.dart';
 import '../widgets.dart';
 import 'settings/adv_firewall_page.dart';
+import 'settings/app_gateway_page.dart';
 import 'settings/adv_fota_page.dart';
 import 'settings/adv_pin_page.dart';
 import 'settings/adv_router_page.dart';
@@ -33,30 +34,15 @@ void _openPage(BuildContext context, Widget page) {
 /// Gelombang B/C/D); yang berubah hanya kulit & tata letak.
 /// Tile SMS / Diagnostik melompat ke tab yang bersangkutan lewat
 /// [onJumpToTab] dari AppShell (indeks tab: 2 = SMS, 3 =
-/// Diagnostik). Pengaturan aplikasi (gateway) tetap di bawah.
-class ToolsScreen extends StatefulWidget {
+/// Diagnostik).
+///
+/// v3.1.1: formulir gateway TIDAK lagi menempel di bawah grid
+/// (terlihat seperti tempelan + label field menimpa tepi) —
+/// kini tile "Gateway" membuka halaman khusus AppGatewayPage.
+class ToolsScreen extends StatelessWidget {
   const ToolsScreen({super.key, this.onJumpToTab});
 
   final ValueChanged<int>? onJumpToTab;
-
-  @override
-  State<ToolsScreen> createState() => _ToolsScreenState();
-}
-
-class _ToolsScreenState extends State<ToolsScreen> {
-  late final TextEditingController _gwController;
-
-  @override
-  void initState() {
-    super.initState();
-    _gwController = TextEditingController(text: AppState.instance.gateway);
-  }
-
-  @override
-  void dispose() {
-    _gwController.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -129,42 +115,18 @@ class _ToolsScreenState extends State<ToolsScreen> {
                 _toolTile(
                   icon: Icons.sms,
                   label: 'SMS',
-                  onTap: () => widget.onJumpToTab?.call(2),
+                  onTap: () => onJumpToTab?.call(2),
                 ),
                 _toolTile(
                   icon: Icons.terminal,
                   label: 'Diagnostik',
-                  onTap: () => widget.onJumpToTab?.call(3),
+                  onTap: () => onJumpToTab?.call(3),
                 ),
-              ],
-            ),
-            const SectionLabel('Aplikasi'),
-            FormCard(
-              children: <Widget>[
-                SettingsTextField(
-                  controller: _gwController,
-                  label: 'Alamat gateway MiFi',
-                  helper: 'Contoh: 192.168.0.1 — alamat MiFi di jaringanmu.',
-                  keyboardType: TextInputType.url,
-                ),
-                const SizedBox(height: AppSpace.md),
-                FilledButton.icon(
-                  onPressed: () {
-                    state.setGateway(_gwController.text);
-                    showSnack(
-                      context,
-                      'Gateway disimpan (hanya selama aplikasi berjalan).',
-                    );
-                  },
-                  icon: const Icon(Icons.save),
-                  label: const Text('Simpan Gateway'),
-                ),
-                const SizedBox(height: AppSpace.md),
-                const Text(
-                  'Catatan: gateway dan kata sandi admin tidak disimpan '
-                  'permanen. Keduanya kembali ke nilai awal '
-                  '(192.168.0.1 / admin) setiap aplikasi ditutup.',
-                  style: AppText.hint,
+                _toolTile(
+                  icon: Icons.router,
+                  label: 'Gateway',
+                  onTap: () =>
+                      _openPage(context, const AppGatewayPage()),
                 ),
               ],
             ),
@@ -177,36 +139,40 @@ class _ToolsScreenState extends State<ToolsScreen> {
 
   /// Satu tile grid Tools ala tpMiFi: kotak navy membulat bertepi
   /// berisi ikon cyan, label kecil di bawahnya.
+  /// v3.1.1: dibungkus PressScale — tile menyusut tipis (0,97)
+  /// saat ditekan, di atas ripple InkWell-nya.
   Widget _toolTile({
     required IconData icon,
     required String label,
     required VoidCallback onTap,
   }) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(16),
-      onTap: onTap,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              color: AppColors.card,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.border),
+    return PressScale(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: AppColors.card,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Icon(icon, color: AppColors.primary, size: 26),
             ),
-            child: Icon(icon, color: AppColors.primary, size: 26),
-          ),
-          const SizedBox(height: 5),
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 10.5,
-              color: AppColors.textSecondary,
+            const SizedBox(height: 5),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 10.5,
+                color: AppColors.textSecondary,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

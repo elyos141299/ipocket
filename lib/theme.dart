@@ -245,5 +245,50 @@ ThemeData buildAppTheme() {
       titleTextStyle: AppText.rowTitle,
       subtitleTextStyle: AppText.rowSubtitle,
     ),
+    // v3.1.1: transisi antar-halaman fade + geser tipis yang
+    // konsisten untuk SEMUA MaterialPageRoute (hub → detail,
+    // tile → halaman) — aplikasi tidak terasa kaku lagi.
+    pageTransitionsTheme: const PageTransitionsTheme(
+      builders: <TargetPlatform, PageTransitionsBuilder>{
+        TargetPlatform.android: _FadeSlideTransitionsBuilder(),
+        TargetPlatform.iOS: _FadeSlideTransitionsBuilder(),
+        TargetPlatform.macOS: _FadeSlideTransitionsBuilder(),
+        TargetPlatform.windows: _FadeSlideTransitionsBuilder(),
+        TargetPlatform.linux: _FadeSlideTransitionsBuilder(),
+      },
+    ),
   );
+}
+
+/// Builder transisi v3.1.1: halaman masuk memudar sambil
+/// bergeser 4% dari kanan, 260 ms easeOutCubic (balik
+/// easeInCubic) — halus, singkat, tetap 60fps karena hanya
+/// opacity + transform.
+class _FadeSlideTransitionsBuilder extends PageTransitionsBuilder {
+  const _FadeSlideTransitionsBuilder();
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    final curved = CurvedAnimation(
+      parent: animation,
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeInCubic,
+    );
+    return FadeTransition(
+      opacity: curved,
+      child: SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(0.04, 0),
+          end: Offset.zero,
+        ).animate(curved),
+        child: child,
+      ),
+    );
+  }
 }

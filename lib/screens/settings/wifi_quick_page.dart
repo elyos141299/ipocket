@@ -216,20 +216,19 @@ class _WifiQuickPageState extends State<WifiQuickPage> {
               ),
               if (isWpaFamily(_authMode)) ...<Widget>[
                 const SizedBox(height: AppSpace.md),
-                TextField(
+                // v3.1.1: panel statis SettingsTextField.
+                SettingsTextField(
                   controller: _passCtl,
-                  obscureText: !_showPass,
-                  decoration: InputDecoration(
-                    labelText: 'Sandi Wi-Fi',
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _showPass
-                            ? Icons.visibility_off
-                            : Icons.visibility,
-                      ),
-                      onPressed: () =>
-                          setState(() => _showPass = !_showPass),
+                  label: 'Sandi Wi-Fi',
+                  obscure: !_showPass,
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _showPass
+                          ? Icons.visibility_off
+                          : Icons.visibility,
                     ),
+                    onPressed: () =>
+                        setState(() => _showPass = !_showPass),
                   ),
                 ),
               ],

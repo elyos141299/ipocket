@@ -84,23 +84,19 @@ class _SmsScreenState extends State<SmsScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            TextField(
+            // v3.1.1: panel statis SettingsTextField (bukan
+            // lagi OutlineInputBorder label melayang).
+            SettingsTextField(
               controller: numberCtl,
+              label: 'Nomor tujuan',
+              hint: '08xxxxxxxxxx',
               keyboardType: TextInputType.phone,
-              decoration: const InputDecoration(
-                labelText: 'Nomor tujuan',
-                hintText: '08xxxxxxxxxx',
-                border: OutlineInputBorder(),
-              ),
             ),
             const SizedBox(height: 12),
-            TextField(
+            SettingsTextField(
               controller: messageCtl,
+              label: 'Isi pesan',
               maxLines: 4,
-              decoration: const InputDecoration(
-                labelText: 'Isi pesan',
-                border: OutlineInputBorder(),
-              ),
             ),
           ],
         ),
@@ -158,21 +154,17 @@ class _SmsScreenState extends State<SmsScreen> {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              TextField(
+              // v3.1.1: panel statis SettingsTextField +
+              // SettingsDropdown (pola v3.1).
+              SettingsTextField(
                 controller: centerCtl,
+                label: 'Nomor pusat pesan (SMSC)',
                 keyboardType: TextInputType.phone,
-                decoration: const InputDecoration(
-                  labelText: 'Nomor pusat pesan (SMSC)',
-                  border: OutlineInputBorder(),
-                ),
               ),
               const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
+              SettingsDropdown<String>(
+                label: 'Validitas pesan',
                 value: validity,
-                decoration: const InputDecoration(
-                  labelText: 'Validitas pesan',
-                  border: OutlineInputBorder(),
-                ),
                 items: const <DropdownMenuItem<String>>[
                   DropdownMenuItem(value: '0', child: Text('12 Jam')),
                   DropdownMenuItem(value: '1', child: Text('1 Hari')),

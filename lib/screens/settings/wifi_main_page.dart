@@ -249,22 +249,22 @@ class _WifiMainPageState extends State<WifiMainPage> {
               ),
               if (isWpaFamily(_authMode)) ...<Widget>[
                 const SizedBox(height: AppSpace.md),
-                TextField(
+                // v3.1.1: panel statis SettingsTextField (label
+                // tetap di dalam panel) — bukan lagi TextField
+                // label melayang.
+                SettingsTextField(
                   controller: _passCtl,
-                  obscureText: !_showPass,
-                  decoration: InputDecoration(
-                    labelText: 'Sandi Wi-Fi',
-                    helperText: 'Minimal 8 karakter.',
-                    helperStyle: AppText.hint,
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _showPass
-                            ? Icons.visibility_off
-                            : Icons.visibility,
-                      ),
-                      onPressed: () =>
-                          setState(() => _showPass = !_showPass),
+                  label: 'Sandi Wi-Fi',
+                  helper: 'Minimal 8 karakter.',
+                  obscure: !_showPass,
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _showPass
+                          ? Icons.visibility_off
+                          : Icons.visibility,
                     ),
+                    onPressed: () =>
+                        setState(() => _showPass = !_showPass),
                   ),
                 ),
               ],

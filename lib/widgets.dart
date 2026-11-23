@@ -50,6 +50,46 @@ class IconBox extends StatelessWidget {
   }
 }
 
+/// Pembungkus micro-interaction v3.1.1: saat ditekan, anak
+/// menyusut tipis ke skala 0,97 lalu kembali — umpan balik
+/// sentuh yang halus tanpa mengganggu gestur anak (detektor
+/// translucent, ketukan tetap diteruskan ke InkWell/ListTile
+/// di dalamnya, ripple bawaan tetap jalan). Animasi hanya
+/// transform → aman 60fps.
+class PressScale extends StatefulWidget {
+  const PressScale({super.key, required this.child, this.scale = 0.97});
+
+  final Widget child;
+  final double scale;
+
+  @override
+  State<PressScale> createState() => _PressScaleState();
+}
+
+class _PressScaleState extends State<PressScale> {
+  bool _pressed = false;
+
+  void _set(bool v) {
+    if (_pressed != v) setState(() => _pressed = v);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onTapDown: (_) => _set(true),
+      onTapUp: (_) => _set(false),
+      onTapCancel: () => _set(false),
+      child: AnimatedScale(
+        scale: _pressed ? widget.scale : 1.0,
+        duration: const Duration(milliseconds: 130),
+        curve: Curves.easeOut,
+        child: widget.child,
+      ),
+    );
+  }
+}
+
 /// Satu baris hub pengaturan: ikon dalam kotak aksen + judul +
 /// subjudul opsional + chevron kanan. Seluruh baris bisa diketuk.
 class HubRow extends StatelessWidget {
@@ -70,22 +110,26 @@ class HubRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(
-        horizontal: AppSpace.lg,
-        vertical: AppSpace.xs,
+    // v3.1.1: baris hub ikut menyusut tipis saat ditekan
+    // (PressScale) di atas ripple ListTile bawaannya.
+    return PressScale(
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: AppSpace.lg,
+          vertical: AppSpace.xs,
+        ),
+        leading: IconBox(icon, color: iconColor),
+        title: Text(title, style: AppText.rowTitle),
+        subtitle: subtitle == null
+            ? null
+            : Text(subtitle!, style: AppText.rowSubtitle),
+        trailing: const Icon(
+          Icons.chevron_right,
+          color: AppColors.textFaint,
+          size: 20,
+        ),
+        onTap: onTap,
       ),
-      leading: IconBox(icon, color: iconColor),
-      title: Text(title, style: AppText.rowTitle),
-      subtitle: subtitle == null
-          ? null
-          : Text(subtitle!, style: AppText.rowSubtitle),
-      trailing: const Icon(
-        Icons.chevron_right,
-        color: AppColors.textFaint,
-        size: 20,
-      ),
-      onTap: onTap,
     );
   }
 }
@@ -392,36 +436,118 @@ class SettingsPageShell extends StatelessWidget {
 }
 
 /// Field teks standar untuk form pengaturan.
-class SettingsTextField extends StatelessWidget {
+///
+/// v3.1.1: panel statis seperti SettingsDropdown v3.1 — label
+/// kecil TETAP di dalam panel di atas isian, TANPA label
+/// melayang InputDecoration. Label melayang lama menimpa tepi
+/// atas field (terlihat jelas di formulir gateway tab Tools
+/// pada screenshot user) dan terasa seperti tempelan. API
+/// (controller/label/helper/keyboardType/obscure/maxLines)
+/// tidak berubah; tambahan opsional: [suffixIcon] (mis. tombol
+/// mata sandi) dan [hint]. Tepi panel menyala cyan saat fokus.
+class SettingsTextField extends StatefulWidget {
   const SettingsTextField({
     super.key,
     required this.controller,
     required this.label,
     this.helper,
+    this.hint,
     this.keyboardType,
     this.obscure = false,
     this.maxLines = 1,
+    this.suffixIcon,
   });
 
   final TextEditingController controller;
   final String label;
   final String? helper;
+  final String? hint;
   final TextInputType? keyboardType;
   final bool obscure;
   final int maxLines;
+  final Widget? suffixIcon;
+
+  @override
+  State<SettingsTextField> createState() => _SettingsTextFieldState();
+}
+
+class _SettingsTextFieldState extends State<SettingsTextField> {
+  final FocusNode _focusNode = FocusNode();
+  bool _focused = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode.addListener(() {
+      if (_focused != _focusNode.hasFocus) {
+        setState(() => _focused = _focusNode.hasFocus);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return TextField(
-      controller: controller,
-      keyboardType: keyboardType,
-      obscureText: obscure,
-      maxLines: maxLines,
-      decoration: InputDecoration(
-        labelText: label,
-        helperText: helper,
-        helperStyle: AppText.hint,
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          decoration: BoxDecoration(
+            color: AppColors.panel,
+            borderRadius: AppRadius.tileBorder,
+            border: Border.all(
+              color: _focused ? AppColors.primary : AppColors.border,
+              width: _focused ? 1.3 : 1.0,
+            ),
+          ),
+          padding: const EdgeInsets.fromLTRB(14, 7, 10, 8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                widget.label,
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: <Widget>[
+                  Expanded(
+                    child: TextField(
+                      controller: widget.controller,
+                      focusNode: _focusNode,
+                      keyboardType: widget.keyboardType,
+                      obscureText: widget.obscure,
+                      maxLines: widget.maxLines,
+                      style: AppText.rowTitle,
+                      decoration: InputDecoration.collapsed(
+                        hintText: widget.hint,
+                        hintStyle: const TextStyle(
+                          color: AppColors.textFaint,
+                        ),
+                      ),
+                    ),
+                  ),
+                  if (widget.suffixIcon != null) widget.suffixIcon!,
+                ],
+              ),
+            ],
+          ),
+        ),
+        if (widget.helper != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 6, left: 2),
+            child: Text(widget.helper!, style: AppText.hint),
+          ),
+      ],
     );
   }
 }

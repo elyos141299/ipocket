@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../app_state.dart';
 import '../models.dart';
 import '../theme.dart';
+import '../widgets.dart';
 import 'settings/devices_page.dart';
 import 'settings/system_page.dart';
 import 'settings/wifi_power_page.dart';
@@ -237,7 +238,7 @@ class _StatusScreenState extends State<StatusScreen> {
             ),
             const SizedBox(height: 44),
             const Text(
-              'v3.1',
+              'v3.1.1',
               textAlign: TextAlign.center,
               style: TextStyle(color: _inkFaint, fontSize: 12),
             ),
@@ -286,9 +287,12 @@ class _StatusScreenState extends State<StatusScreen> {
 
   /// Tombol Masuk gradasi cyan → biru (Container gradasi +
   /// InkWell) mengikuti mockup — bukan FilledButton polos.
+  /// v3.1.1: ripple InkWell sudah ada; ditambah PressScale agar
+  /// tombol terasa menyusut tipis saat ditekan.
   Widget _loginButton(AppState state) {
     final busy = state.busy;
-    return Container(
+    return PressScale(
+      child: Container(
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: <Color>[AppColors.accent, AppColors.gradientMid],
@@ -324,6 +328,7 @@ class _StatusScreenState extends State<StatusScreen> {
             ),
           ),
         ),
+      ),
       ),
     );
   }
@@ -555,9 +560,20 @@ class _StatusScreenState extends State<StatusScreen> {
               height: 148,
               child: Stack(
                 children: <Widget>[
-                  CustomPaint(
-                    size: const Size(260, 148),
-                    painter: _GaugePainter(fraction: fraction),
+                  // v3.1.1: busur nilai MENYAPU halus ke nilai
+                  // baru setiap polling (TweenAnimationBuilder
+                  // 650 ms) — bukan lompat kasar antar-angka.
+                  TweenAnimationBuilder<double>(
+                    tween: Tween<double>(end: fraction),
+                    duration: const Duration(milliseconds: 650),
+                    curve: Curves.easeOutCubic,
+                    builder: (context, animatedFraction, _) {
+                      return CustomPaint(
+                        size: const Size(260, 148),
+                        painter:
+                            _GaugePainter(fraction: animatedFraction),
+                      );
+                    },
                   ),
                   Positioned.fill(
                     child: Column(

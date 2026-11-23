@@ -224,46 +224,41 @@ class _SystemPageState extends State<SystemPage> {
                     style: AppText.rowSubtitle,
                   ),
                   const SizedBox(height: AppSpace.md),
-                  TextField(
+                  // v3.1.1: panel statis SettingsTextField.
+                  SettingsTextField(
                     controller: _oldPwController,
-                    obscureText: !_showOld,
-                    decoration: InputDecoration(
-                      labelText: 'Kata sandi saat ini',
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _showOld
-                              ? Icons.visibility_off
-                              : Icons.visibility,
-                        ),
-                        onPressed: () =>
-                            setState(() => _showOld = !_showOld),
+                    label: 'Kata sandi saat ini',
+                    obscure: !_showOld,
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _showOld
+                            ? Icons.visibility_off
+                            : Icons.visibility,
                       ),
+                      onPressed: () =>
+                          setState(() => _showOld = !_showOld),
                     ),
                   ),
                   const SizedBox(height: AppSpace.md),
-                  TextField(
+                  SettingsTextField(
                     controller: _newPwController,
-                    obscureText: !_showNew,
-                    decoration: InputDecoration(
-                      labelText: 'Kata sandi baru',
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _showNew
-                              ? Icons.visibility_off
-                              : Icons.visibility,
-                        ),
-                        onPressed: () =>
-                            setState(() => _showNew = !_showNew),
+                    label: 'Kata sandi baru',
+                    obscure: !_showNew,
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _showNew
+                            ? Icons.visibility_off
+                            : Icons.visibility,
                       ),
+                      onPressed: () =>
+                          setState(() => _showNew = !_showNew),
                     ),
                   ),
                   const SizedBox(height: AppSpace.md),
-                  TextField(
+                  SettingsTextField(
                     controller: _confirmPwController,
-                    obscureText: !_showNew,
-                    decoration: const InputDecoration(
-                      labelText: 'Konfirmasi kata sandi baru',
-                    ),
+                    label: 'Konfirmasi kata sandi baru',
+                    obscure: !_showNew,
                   ),
                   const SizedBox(height: AppSpace.lg),
                   FilledButton.icon(
