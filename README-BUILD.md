@@ -4,7 +4,7 @@ Aplikasi Flutter "iPocket": panel status untuk MiFi Advan iPocket MF01
 (API reqproc perangkat) — pantau sinyal, baterai, perangkat terhubung,
 dan SMS tanpa membuka browser. Spesifikasi API: `../API-CONTRACT.md`.
 
-Versi: **v2.0.1** — perbaikan nama kelas tema untuk Flutter 3.32 (`AppBarThemeData`→`AppBarTheme`, `CardThemeData`→`CardTheme` di `lib/theme.dart`; Run CI #12 gagal kompilasi karena nama *ThemeData itu belum ada di 3.32).
+Versi: **v2.0.2** — `CardTheme` dikembalikan ke `CardThemeData` di `lib/theme.dart` (parameter `cardTheme` ThemeData di Flutter 3.32 memang bertipe `CardThemeData?`; Run CI #13 gagal di situ. `AppBarTheme` tetap tanpa akhiran Data — sudah terbukti benar di 3.32).
 Sebelumnya **v2.0** — Gelombang B+C+D LENGKAP dalam satu build +
 poles tampilan profesional (lihat bagian **v2.0** di bawah).
 Sebelumnya **v1.5** — perbaikan format `sms_time` kirim SMS
