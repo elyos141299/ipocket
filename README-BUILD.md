@@ -4,10 +4,12 @@ Aplikasi Flutter "iPocket": panel status untuk MiFi Advan iPocket MF01
 (ZTE goform) — pantau sinyal, baterai, perangkat terhubung, dan SMS
 tanpa membuka browser. Spesifikasi API: `../API-CONTRACT.md`.
 
-Versi: **v0.2** — mode penemuan API (firmware perangkat terbukti
-menjawab 404 untuk /goform/*, jadi endpoint asli ditemukan dengan
-membaca kode WebUI dari perangkat itu sendiri; lihat
-`lib/discovery.dart`).
+Versi: **v0.3** — penemuan API lanjutan (v0.2 membuktikan firmware
+perangkat menjawab 404 untuk /goform/* dan WebUI-nya RequireJS +
+Knockout yang modul aplikasinya dimuat dinamis; v0.3 memetakan tag
+`<script>` index.html, mencoba kamus path modul umum, dan men-crawl
+nama modul require/define untuk menemukan JS aplikasi aslinya;
+lihat `lib/discovery.dart`).
 
 ## Struktur proyek
 
@@ -27,6 +29,10 @@ app/
     ├── discovery.dart      # v0.2: penemuan API — unduh HTML + file JS
     │                       # WebUI dari perangkat, pindai kandidat
     │                       # endpoint & konteks panggilan AJAX/fetch
+    │                       # v0.3: penemuan lanjutan — tag <script>
+    │                       # verbatim, kamus modul, crawl require/
+    │                       # define + paths:, pindaian kata kunci
+    │                       # khusus (goform/cmd_process/.cgi/proc_*)
     ├── models.dart         # DeviceStatus (parse longgar, anti-crash) +
     │                       # SmsMessage + decode hex UTF-16BE
     └── screens/
@@ -43,7 +49,15 @@ status gabungan → SMS, dan semua request/respons mentah tercatat untuk
 di-screenshot dan dicocokkan dengan perangkat asli. Tombol kedua,
 **Jalankan Penemuan API** (v0.2), membaca HTML + file JS WebUI dari
 perangkat dan mencatat kandidat endpoint asli beserta konteks
-pemanggilannya ke log yang sama.
+pemanggilannya ke log yang sama. Tombol ketiga, **Penemuan API
+Lanjutan** (v0.3), memburu modul aplikasi RequireJS yang dimuat
+dinamis: mencatat semua tag `<script>` index.html secara verbatim,
+mencoba kamus path modul (`js/main.js`, `js/service.js`, dst. —
+status 404 pun dicatat sebagai informasi layout), lalu mengekstrak
+nama modul dari `require([...])`/`define([...])` dan nilai `paths:`
+dari require.config untuk mengunduh file JS aplikasi dan
+memindainya, termasuk pindaian khusus kata kunci `goform`,
+`cmd_process`, `.cgi`, `proc_get`, `proc_post`.
 
 ## Build lokal (butuh Mac untuk iOS)
 

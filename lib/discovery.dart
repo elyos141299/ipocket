@@ -305,3 +305,312 @@ class ApiDiscovery {
     );
   }
 }
+
+/// Penemuan API Lanjutan (v0.3).
+///
+/// Hasil v0.2 di perangkat asli: index.html terbaca (WebUI RequireJS +
+/// Knockout), tapi satu-satunya file JS yang tertangkap dari atribut
+/// src=/href= adalah library generik (require-jquery.js) — modul
+/// aplikasi dimuat DINAMIS oleh RequireJS sehingga belum terjangkau.
+/// Mode lanjutan ini memburunya lewat tiga jalur:
+///
+/// 1. Petakan semua tag `<script ...>` di /index.html secara verbatim
+///    (src, data-main, dll) + 1500 karakter terakhir HTML.
+/// 2. Coba "kamus modul": path JS yang umum dipakai WebUI sekelas ini;
+///    status HTTP tiap path tercatat (404 pun informasi layout).
+/// 3. Crawl tingkat dua: ekstrak nama modul dari require([...]) /
+///    define([...]) dan nilai `paths:` dari require.config pada JS
+///    yang berhasil dibaca, susun URL kandidat, unduh & pindai lagi.
+///
+/// Setiap file yang terbaca dipindai dengan regex endpoint yang sama
+/// seperti v0.2, DITAMBAH pindaian kata kunci khusus (goform,
+/// cmd_process, .cgi, proc_get, proc_post) dengan konteks ±100
+/// karakter. Semua READ-ONLY, tercatat ke DiagnosticsLog yang sama.
+class ApiDiscoveryAdvanced extends ApiDiscovery {
+  ApiDiscoveryAdvanced({required super.gateway, required super.log});
+
+  /// Path modul yang umum pada WebUI RequireJS — dicoba satu per satu.
+  static const List<String> _moduleDictionary = <String>[
+    'js/main.js',
+    'js/config.js',
+    'js/service.js',
+    'js/api.js',
+    'js/app.js',
+    'js/index.js',
+    'js/lib/service.js',
+    'js/modules/service.js',
+    'js/config/config.js',
+  ];
+
+  /// Kata kunci khusus: jejak API perangkat (sisa goform maupun pola
+  /// CGI/proc lain) yang dicari verbatim di kode JS.
+  static const List<String> _specialKeywords = <String>[
+    'goform',
+    'cmd_process',
+    '.cgi',
+    'proc_get',
+    'proc_post',
+  ];
+
+  static final RegExp _scriptTagRe = RegExp(
+    r'<script[^>]*>',
+    caseSensitive: false,
+  );
+
+  static final List<RegExp> _requireArrayRes = <RegExp>[
+    RegExp(r'(?:require|define)\s*\(\s*\[([^\]]*)\]'),
+    RegExp(r'''define\s*\(\s*["'][^"']*["']\s*,\s*\[([^\]]*)\]'''),
+  ];
+
+  static final RegExp _pathsBlockRe = RegExp(r'paths\s*:\s*\{([^}]*)\}');
+
+  static final RegExp _pathPairRe = RegExp(
+    r'''["']([^"']+)["']\s*:\s*["']([^"']+)["']''',
+  );
+
+  /// Nama modul/path yang aman disusun jadi URL (huruf, angka, dan
+  /// pemisah path saja — membuang string aneh dari array dependensi).
+  static final RegExp _safeRefRe = RegExp(r'^[A-Za-z0-9_\-./]+$');
+
+  /// Pindai satu file JS untuk penemuan lanjutan: kandidat endpoint
+  /// (regex yang sama dengan v0.2) + hitungan & konteks kata kunci
+  /// khusus. Kandidat digabung ke [globalCandidates]. Mengembalikan
+  /// jumlah kemunculan "goform" (case-insensitive) di file ini.
+  int _scanJsAdvanced(
+    String name,
+    String js,
+    Set<String> globalCandidates,
+  ) {
+    final candidates = _scanEndpoints(js);
+    globalCandidates.addAll(candidates);
+    if (candidates.isEmpty) {
+      log.addNote('Endpoint kandidat dari $name: (tidak ada)');
+    } else {
+      _logChunks(
+        'Endpoint kandidat dari $name (${candidates.length}):',
+        candidates.join('\n'),
+      );
+    }
+
+    var goformHits = 0;
+    final counts = <String, int>{};
+    final snippets = <String>[];
+    for (final kw in _specialKeywords) {
+      final re = RegExp(RegExp.escape(kw), caseSensitive: false);
+      final matches = re.allMatches(js).toList();
+      counts[kw] = matches.length;
+      if (kw == 'goform') goformHits = matches.length;
+      for (final m in matches) {
+        if (snippets.length >= 40) break;
+        final start = m.start - 100 < 0 ? 0 : m.start - 100;
+        final end = m.end + 100 > js.length ? js.length : m.end + 100;
+        snippets.add(
+          '[$kw] ${js.substring(start, end).replaceAll(RegExp(r'\s+'), ' ').trim()}',
+        );
+      }
+    }
+    log.addNote(
+      'Kata kunci khusus di $name — '
+      '${_specialKeywords.map((k) => '$k: ${counts[k]}').join(', ')}',
+    );
+    if (snippets.isNotEmpty) {
+      _logChunks(
+        'Konteks kata kunci khusus dari $name (${snippets.length}):',
+        snippets.join('\n---\n'),
+      );
+    }
+    return goformHits;
+  }
+
+  /// Terkesan file lokal? Bukan URL absolut dan bukan library pihak
+  /// ketiga (folder "3rd" — sudah terbukti generik di v0.2).
+  static bool _looksLocal(String ref) {
+    final low = ref.toLowerCase();
+    return !low.startsWith('http://') &&
+        !low.startsWith('https://') &&
+        !low.startsWith('//') &&
+        !low.contains('3rd');
+  }
+
+  /// Susun URL kandidat dari NAMA modul require/define:
+  /// `<base>/js/<nama>.js` (kecuali nama sudah berawalan js/).
+  String _moduleUrl(String name) {
+    var n = name;
+    if (n.startsWith('./')) n = n.substring(2);
+    if (n.startsWith('/')) n = n.substring(1);
+    final withExt = n.endsWith('.js') ? n : '$n.js';
+    return withExt.startsWith('js/') ? '$_base/$withExt' : '$_base/js/$withExt';
+  }
+
+  /// Susun URL kandidat dari NILAI paths: require.config:
+  /// `<base>/<path>.js` (path dianggap relatif ke root WebUI).
+  String _pathUrl(String path) {
+    var p = path;
+    if (p.startsWith('./')) p = p.substring(2);
+    if (p.startsWith('/')) p = p.substring(1);
+    return p.endsWith('.js') ? '$_base/$p' : '$_base/$p.js';
+  }
+
+  /// Jalankan seluruh urutan penemuan lanjutan ke log diagnostik.
+  Future<void> runAdvanced() async {
+    log.addNote('=== PENEMUAN API LANJUTAN DIMULAI ===');
+
+    final tried = <String, int?>{}; // URL → status HTTP (null = gagal)
+    final globalCandidates = <String>{};
+    var goformCount = 0;
+    final jsBodies = <String>[]; // isi JS status 200, bahan crawl
+
+    Future<http.Response?> fetch(
+      String url,
+      String note, {
+      Duration timeout = const Duration(seconds: 10),
+    }) async {
+      final res = await _getRaw(Uri.parse(url), timeout: timeout, note: note);
+      tried[url] = res?.statusCode;
+      return res;
+    }
+
+    // Langkah 1: /index.html — tag <script> verbatim + ekor HTML.
+    final indexUrl = '$_base/index.html';
+    final indexRes = await fetch(
+      indexUrl,
+      'Penemuan lanjutan: halaman /index.html',
+    );
+    if (indexRes != null && indexRes.statusCode == 200) {
+      final html = indexRes.body;
+      goformCount +=
+          RegExp('goform', caseSensitive: false).allMatches(html).length;
+      final tags =
+          _scriptTagRe.allMatches(html).map((m) => m.group(0)!).toList();
+      if (tags.isEmpty) {
+        log.addNote('Tag <script> di /index.html: (tidak ditemukan)');
+      } else {
+        _logChunks(
+          'Tag <script> di /index.html (${tags.length}):',
+          tags.join('\n'),
+        );
+      }
+      if (html.isNotEmpty) {
+        final tail =
+            html.length <= 1500 ? html : html.substring(html.length - 1500);
+        log.addNote('1500 karakter terakhir /index.html:\n$tail');
+      }
+    } else {
+      log.addNote(
+        'Penemuan lanjutan: /index.html tidak terbaca '
+        '(status ${indexRes?.statusCode}) — lanjut ke kamus modul.',
+      );
+    }
+
+    // Langkah 2: kamus modul — status tiap path tercatat apa adanya.
+    for (final path in _moduleDictionary) {
+      final url = '$_base/$path';
+      final res = await fetch(url, 'Penemuan lanjutan: kamus modul $path');
+      if (res != null && res.statusCode == 200) {
+        jsBodies.add(res.body);
+        goformCount += _scanJsAdvanced(
+          ApiDiscovery._fileName(url),
+          res.body,
+          globalCandidates,
+        );
+      }
+    }
+
+    // Langkah 3: crawl tingkat dua dari JS yang berhasil dibaca.
+    final moduleNames = <String>{};
+    final pathValues = <String>{};
+    for (final body in jsBodies) {
+      for (final re in _requireArrayRes) {
+        for (final m in re.allMatches(body)) {
+          final inner = m.group(1) ?? '';
+          for (final lm in ApiDiscovery._literalRe.allMatches(inner)) {
+            final s = (lm.group(1) ?? lm.group(2) ?? '').trim();
+            if (s.isNotEmpty) moduleNames.add(s);
+          }
+        }
+      }
+      for (final m in _pathsBlockRe.allMatches(body)) {
+        final inner = m.group(1) ?? '';
+        for (final pm in _pathPairRe.allMatches(inner)) {
+          final v = (pm.group(2) ?? '').trim();
+          if (v.isNotEmpty) pathValues.add(v);
+        }
+      }
+    }
+    if (moduleNames.isEmpty) {
+      log.addNote('Nama modul dari require/define: (tidak ditemukan)');
+    } else {
+      _logChunks(
+        'Nama modul dari require/define (${moduleNames.length}):',
+        (moduleNames.toList()..sort()).join('\n'),
+      );
+    }
+    if (pathValues.isEmpty) {
+      log.addNote('Nilai paths: dari require.config: (tidak ditemukan)');
+    } else {
+      _logChunks(
+        'Nilai paths: dari require.config (${pathValues.length}):',
+        (pathValues.toList()..sort()).join('\n'),
+      );
+    }
+
+    final crawlUrls = <String>[];
+    void addCrawl(String url) {
+      if (!crawlUrls.contains(url) && !tried.containsKey(url)) {
+        crawlUrls.add(url);
+      }
+    }
+
+    for (final raw in moduleNames) {
+      // Sintaks plugin RequireJS ("text!tpl/x") → ambil file aslinya.
+      final name = (raw.contains('!') ? raw.split('!').last : raw).trim();
+      if (name.isEmpty || !_looksLocal(name) || !_safeRefRe.hasMatch(name)) {
+        continue;
+      }
+      addCrawl(_moduleUrl(name));
+    }
+    for (final raw in pathValues) {
+      final path = raw.trim();
+      if (path.isEmpty || !_looksLocal(path) || !_safeRefRe.hasMatch(path)) {
+        continue;
+      }
+      addCrawl(_pathUrl(path));
+    }
+
+    final extra = crawlUrls.take(12).toList();
+    if (crawlUrls.length > extra.length) {
+      log.addNote(
+        'Hanya ${extra.length} URL crawl pertama yang dibaca '
+        '(total kandidat ${crawlUrls.length}).',
+      );
+    }
+    for (final url in extra) {
+      final res = await fetch(
+        url,
+        'Penemuan lanjutan: crawl modul',
+        timeout: const Duration(seconds: 15),
+      );
+      if (res != null && res.statusCode == 200) {
+        goformCount += _scanJsAdvanced(
+          ApiDiscovery._fileName(url),
+          res.body,
+          globalCandidates,
+        );
+      }
+    }
+
+    // Langkah 4: ringkasan akhir.
+    _logChunks(
+      'Semua URL yang dicoba (${tried.length}):',
+      tried.entries
+          .map((e) => '${e.key} → ${e.value ?? 'gagal jaringan'}')
+          .join('\n'),
+    );
+    log.addNote(
+      '=== PENEMUAN API LANJUTAN SELESAI ===\n'
+      'Ringkasan: ${tried.length} URL dicoba, '
+      '${globalCandidates.length} endpoint kandidat unik, '
+      '$goformCount kemunculan "goform" di semua file yang terbaca.',
+    );
+  }
+}

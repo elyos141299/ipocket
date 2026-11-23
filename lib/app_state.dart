@@ -147,4 +147,20 @@ class AppState extends ChangeNotifier {
       notifyListeners();
     }
   }
+
+  /// Jalankan penemuan API lanjutan (v0.3): petakan tag <script>
+  /// RequireJS di index.html, coba kamus path modul yang umum, lalu
+  /// crawl nama modul dari require/define + paths: require.config
+  /// untuk menemukan file JS aplikasi WebUI yang dimuat dinamis.
+  /// Semua hasil tercatat di log diagnostik yang sama.
+  Future<void> runDiscoveryAdvanced() async {
+    busy = true;
+    notifyListeners();
+    try {
+      await ApiDiscoveryAdvanced(gateway: gateway, log: log).runAdvanced();
+    } finally {
+      busy = false;
+      notifyListeners();
+    }
+  }
 }
