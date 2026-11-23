@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../app_state.dart';
+import '../theme.dart';
 
 /// Layar Diagnostik: catatan semua request aplikasi (URL lengkap,
 /// status HTTP, badan respons mentah dipotong ±2000 karakter) dalam
@@ -21,7 +22,7 @@ class DiagnosticsScreen extends StatelessWidget {
         return Column(
           children: <Widget>[
             Padding(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(AppSpace.md),
               child: Wrap(
                 spacing: 8,
                 runSpacing: 8,
@@ -90,7 +91,7 @@ class DiagnosticsScreen extends StatelessWidget {
             if (state.busy) const LinearProgressIndicator(),
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(AppSpace.md),
                 child: SelectableText(
                   text,
                   style: const TextStyle(fontFamily: 'monospace', fontSize: 11),

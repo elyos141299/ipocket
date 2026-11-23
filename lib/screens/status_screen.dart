@@ -5,22 +5,21 @@ import 'package:flutter/material.dart';
 
 import '../app_state.dart';
 import '../models.dart';
+import '../theme.dart';
 
-// Palet dashboard v1.4: TEMA GELAP + PUTIH (permintaan user
-// 23 Nov 2026 — tema terang v1.2/v1.3 kurang disukai). Panel
-// sangat gelap, teks utama PUTIH, teks sekunder putih 60–70%,
-// track/garis putih ±10%. Pink Advan #EC008D/#F95FB4 HANYA
-// aksen kecil: ring progres, ikon aksen, state aktif.
-// (_ink kini PUTIH — nama lama dipertahankan untuk teks utama.)
-const Color _primary = Color(0xFFEC008D);
-const Color _accent = Color(0xFFF95FB4);
-const Color _ink = Colors.white;
-const Color _inkSoft = Color(0xB3FFFFFF);
-const Color _inkFaint = Color(0x61FFFFFF);
-const Color _headerDark = Color(0xFF16121A);
-const Color _headerDeep = Color(0xFF2A1530);
-const Color _tileBg = Color(0xFF262030);
-const Color _tileIcon = Color(0xFFF95FB4);
+// Palet dashboard kini dari token terpusat theme.dart (v2.0) —
+// nilainya sama persis dengan palet v1.4 (GELAP + PUTIH, pink
+// Advan hanya aksen kecil). Nama lokal dipertahankan agar isi
+// layar tidak berubah perilaku/tampilannya.
+const Color _primary = AppColors.primary;
+const Color _accent = AppColors.accent;
+const Color _ink = AppColors.textPrimary;
+const Color _inkSoft = AppColors.textSecondary;
+const Color _inkFaint = AppColors.textFaint;
+const Color _headerDark = AppColors.headerDark;
+const Color _headerDeep = AppColors.headerDeep;
+const Color _tileBg = AppColors.panel;
+const Color _tileIcon = AppColors.accent;
 
 String _or(String? v) => (v == null || v.isEmpty) ? '—' : v;
 

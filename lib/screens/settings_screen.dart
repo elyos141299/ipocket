@@ -1,11 +1,32 @@
 import 'package:flutter/material.dart';
 
 import '../app_state.dart';
+import '../theme.dart';
+import '../widgets.dart';
+import 'settings/adv_firewall_page.dart';
+import 'settings/adv_fota_page.dart';
+import 'settings/adv_pin_page.dart';
+import 'settings/adv_router_page.dart';
+import 'settings/adv_sntp_page.dart';
+import 'settings/devices_page.dart';
+import 'settings/net_apn_page.dart';
+import 'settings/net_data_page.dart';
+import 'settings/net_mode_page.dart';
+import 'settings/net_select_page.dart';
+import 'settings/system_page.dart';
+import 'settings/wifi_advanced_page.dart';
+import 'settings/wifi_mac_page.dart';
+import 'settings/wifi_main_page.dart';
+import 'settings/wifi_power_page.dart';
+import 'settings/wifi_quick_page.dart';
+import 'settings/wifi_wps_page.dart';
 
-/// Layar Pengaturan: gateway aplikasi, plus (Gelombang A) aksi
-/// perangkat — mulai ulang (REBOOT_DEVICE) dan ganti kata sandi
-/// login (CHANGE_PASSWORD). Semua nilai hanya di memori selama
-/// aplikasi berjalan.
+/// Tab Pengaturan v2.0 — HUB bergaya Settings iPhone: grup-grup
+/// berisi baris ikon + judul + chevron; tiap baris membuka
+/// sub-halaman sendiri. Isi grup mengikuti paritas WebUI
+/// (Gelombang B/C/D, FULL-SPEC-BCD.md):
+/// Wi-Fi, Jaringan, Perangkat Terhubung, Lanjutan, Sistem.
+/// Pengaturan aplikasi (gateway) tetap di sini seperti sebelumnya.
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
@@ -15,83 +36,23 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   late final TextEditingController _gwController;
-  late final TextEditingController _oldPwController;
-  late final TextEditingController _newPwController;
-  late final TextEditingController _confirmPwController;
-  bool _showOld = false;
-  bool _showNew = false;
 
   @override
   void initState() {
     super.initState();
     _gwController = TextEditingController(text: AppState.instance.gateway);
-    _oldPwController = TextEditingController();
-    _newPwController = TextEditingController();
-    _confirmPwController = TextEditingController();
   }
 
   @override
   void dispose() {
     _gwController.dispose();
-    _oldPwController.dispose();
-    _newPwController.dispose();
-    _confirmPwController.dispose();
     super.dispose();
   }
 
-  void _snack(String msg) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(msg)));
-  }
-
-  Future<void> _reboot(AppState state) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Mulai ulang MiFi?'),
-        content: const Text(
-          'Perangkat akan MATI lalu menyala lagi (±1 menit). '
-          'Koneksi internet dan WiFi iPocket terputus selama itu, '
-          'dan sesi aplikasi ini kemungkinan berakhir. Lanjutkan?',
-        ),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Batal'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Mulai Ulang'),
-          ),
-        ],
-      ),
+  void _open(Widget page) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => page),
     );
-    if (ok != true) return;
-    _snack(await state.rebootDevice());
-  }
-
-  Future<void> _changePassword(AppState state) async {
-    final oldPw = _oldPwController.text;
-    final newPw = _newPwController.text;
-    final confirmPw = _confirmPwController.text;
-    if (oldPw.isEmpty || newPw.isEmpty) {
-      _snack('Kata sandi lama dan baru wajib diisi.');
-      return;
-    }
-    if (newPw != confirmPw) {
-      _snack('Konfirmasi kata sandi baru tidak sama.');
-      return;
-    }
-    if (newPw == oldPw) {
-      _snack('Kata sandi baru harus berbeda dari yang lama.');
-      return;
-    }
-    final msg = await state.changePassword(oldPw, newPw);
-    _oldPwController.clear();
-    _newPwController.clear();
-    _confirmPwController.clear();
-    _snack(msg);
   }
 
   @override
@@ -101,118 +62,185 @@ class _SettingsScreenState extends State<SettingsScreen> {
       listenable: state,
       builder: (context, _) {
         return ListView(
-          padding: const EdgeInsets.all(16),
+          padding: AppSpace.page,
           children: <Widget>[
-            TextField(
-              controller: _gwController,
-              keyboardType: TextInputType.url,
-              decoration: const InputDecoration(
-                labelText: 'Alamat gateway MiFi',
-                helperText:
-                    'Contoh: 192.168.0.1 — alamat MiFi iPocket di jaringanmu.',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            FilledButton.icon(
-              onPressed: () {
-                state.setGateway(_gwController.text);
-                _snack(
-                  'Gateway disimpan (hanya selama aplikasi berjalan).',
-                );
-              },
-              icon: const Icon(Icons.save),
-              label: const Text('Simpan'),
-            ),
-            const SizedBox(height: 24),
-            const Text(
-              'Catatan: gateway dan password admin tidak disimpan permanen. '
-              'Keduanya kembali ke nilai awal (192.168.0.1 / admin) setiap '
-              'aplikasi ditutup.',
-            ),
-            const SizedBox(height: 24),
-            const Divider(),
-            const SizedBox(height: 8),
-            Text(
-              'Perangkat',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-            ),
-            const SizedBox(height: 8),
             if (!state.loggedIn)
-              const Text(
-                'Masuk dulu di tab Status untuk memakai aksi perangkat.',
-                style: TextStyle(color: Colors.white60),
-              )
-            else ...<Widget>[
-              OutlinedButton.icon(
-                onPressed:
-                    state.busy ? null : () => _reboot(state),
-                icon: const Icon(Icons.restart_alt),
-                label: const Text('Mulai Ulang Perangkat'),
-              ),
-              const SizedBox(height: 24),
-              Text(
-                'Ganti Kata Sandi Login',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-              ),
-              const SizedBox(height: 4),
-              const Text(
-                'Kata sandi ini adalah sandi admin MiFi (yang dipakai '
-                'masuk WebUI & aplikasi ini). Setelah berhasil, kamu '
-                'akan diarahkan masuk lagi dengan sandi baru.',
-                style: TextStyle(color: Colors.white60),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _oldPwController,
-                obscureText: !_showOld,
-                decoration: InputDecoration(
-                  labelText: 'Kata sandi saat ini',
-                  border: const OutlineInputBorder(),
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _showOld ? Icons.visibility_off : Icons.visibility,
-                    ),
-                    onPressed: () => setState(() => _showOld = !_showOld),
+              const Card(
+                child: Padding(
+                  padding: AppSpace.cardInner,
+                  child: Row(
+                    children: <Widget>[
+                      Icon(Icons.lock_outline, color: AppColors.accent),
+                      SizedBox(width: AppSpace.md),
+                      Expanded(
+                        child: Text(
+                          'Masuk dulu di tab Status untuk membuka '
+                          'pengaturan perangkat.',
+                          style: AppText.rowSubtitle,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _newPwController,
-                obscureText: !_showNew,
-                decoration: InputDecoration(
-                  labelText: 'Kata sandi baru',
-                  border: const OutlineInputBorder(),
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _showNew ? Icons.visibility_off : Icons.visibility,
-                    ),
-                    onPressed: () => setState(() => _showNew = !_showNew),
-                  ),
+            const SectionLabel('Wi-Fi', top: AppSpace.sm),
+            HubGroup(
+              children: <Widget>[
+                HubRow(
+                  icon: Icons.rocket_launch_outlined,
+                  title: 'Pengaturan Cepat',
+                  subtitle: 'Wizard APN + Wi-Fi sekali jalan',
+                  onTap: () => _open(const WifiQuickPage()),
                 ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _confirmPwController,
-                obscureText: !_showNew,
-                decoration: const InputDecoration(
-                  labelText: 'Konfirmasi kata sandi baru',
-                  border: OutlineInputBorder(),
+                HubRow(
+                  icon: Icons.wifi,
+                  title: 'Wi-Fi Utama',
+                  subtitle: 'SSID, sandi, keamanan, batas akses',
+                  onTap: () => _open(const WifiMainPage()),
                 ),
-              ),
-              const SizedBox(height: 12),
-              FilledButton.icon(
-                onPressed:
-                    state.busy ? null : () => _changePassword(state),
-                icon: const Icon(Icons.lock_reset),
-                label: const Text('Ganti Kata Sandi'),
-              ),
-            ],
+                HubRow(
+                  icon: Icons.tune,
+                  title: 'Wi-Fi Lanjutan',
+                  subtitle: 'Negara, kanal, batas akses',
+                  onTap: () => _open(const WifiAdvancedPage()),
+                ),
+                HubRow(
+                  icon: Icons.wifi_protected_setup,
+                  title: 'WPS',
+                  subtitle: 'Sambung perangkat dengan PIN / PBC',
+                  onTap: () => _open(const WifiWpsPage()),
+                ),
+                HubRow(
+                  icon: Icons.filter_alt_outlined,
+                  title: 'Filter MAC',
+                  subtitle: 'Daftar putih / daftar hitam perangkat',
+                  onTap: () => _open(const WifiMacPage()),
+                ),
+                HubRow(
+                  icon: Icons.battery_saver_outlined,
+                  title: 'Hemat Daya',
+                  subtitle: 'Cakupan Wi-Fi & waktu tidur',
+                  onTap: () => _open(const WifiPowerPage()),
+                ),
+              ],
+            ),
+            const SectionLabel('Jaringan'),
+            HubGroup(
+              children: <Widget>[
+                HubRow(
+                  icon: Icons.settings_ethernet,
+                  title: 'Mode Koneksi',
+                  subtitle: 'Otomatis / manual & roaming',
+                  onTap: () => _open(const NetModePage()),
+                ),
+                HubRow(
+                  icon: Icons.cell_tower,
+                  title: 'Pilih Jaringan',
+                  subtitle: 'Pindai & pilih operator manual',
+                  onTap: () => _open(const NetSelectPage()),
+                ),
+                HubRow(
+                  icon: Icons.public,
+                  title: 'APN',
+                  subtitle: 'Profil akses internet operator',
+                  onTap: () => _open(const NetApnPage()),
+                ),
+                HubRow(
+                  icon: Icons.data_usage,
+                  title: 'Manajemen Data',
+                  subtitle: 'Batas pemakaian & peringatan',
+                  onTap: () => _open(const NetDataPage()),
+                ),
+              ],
+            ),
+            const SectionLabel('Perangkat'),
+            HubGroup(
+              children: <Widget>[
+                HubRow(
+                  icon: Icons.devices,
+                  title: 'Perangkat Terhubung',
+                  subtitle: 'Daftar klien, blokir & ganti nama',
+                  onTap: () => _open(const DevicesPage()),
+                ),
+              ],
+            ),
+            const SectionLabel('Lanjutan'),
+            HubGroup(
+              children: <Widget>[
+                HubRow(
+                  icon: Icons.router,
+                  title: 'Router & DHCP',
+                  subtitle: 'IP LAN, netmask, server DHCP',
+                  onTap: () => _open(const AdvRouterPage()),
+                ),
+                HubRow(
+                  icon: Icons.security,
+                  title: 'Firewall',
+                  subtitle: 'Filter port, forwarding, DMZ, URL, UPnP',
+                  onTap: () => _open(const AdvFirewallPage()),
+                ),
+                HubRow(
+                  icon: Icons.schedule,
+                  title: 'Waktu (SNTP)',
+                  subtitle: 'Sinkronisasi waktu perangkat',
+                  onTap: () => _open(const AdvSntpPage()),
+                ),
+                HubRow(
+                  icon: Icons.sim_card_outlined,
+                  title: 'PIN SIM',
+                  subtitle: 'Status PIN & sisa upaya (baca-saja)',
+                  onTap: () => _open(const AdvPinPage()),
+                ),
+                HubRow(
+                  icon: Icons.system_update_alt,
+                  title: 'Pembaruan Firmware',
+                  subtitle: 'Periksa & atur pembaruan otomatis',
+                  onTap: () => _open(const AdvFotaPage()),
+                ),
+              ],
+            ),
+            const SectionLabel('Sistem'),
+            HubGroup(
+              children: <Widget>[
+                HubRow(
+                  icon: Icons.power_settings_new,
+                  title: 'Sistem & Perangkat',
+                  subtitle: 'Info, mulai ulang, matikan, reset, sandi',
+                  onTap: () => _open(const SystemPage()),
+                ),
+              ],
+            ),
+            const SectionLabel('Aplikasi'),
+            FormCard(
+              children: <Widget>[
+                SettingsTextField(
+                  controller: _gwController,
+                  label: 'Alamat gateway MiFi',
+                  helper: 'Contoh: 192.168.0.1 — alamat MiFi di jaringanmu.',
+                  keyboardType: TextInputType.url,
+                ),
+                const SizedBox(height: AppSpace.md),
+                FilledButton.icon(
+                  onPressed: () {
+                    state.setGateway(_gwController.text);
+                    showSnack(
+                      context,
+                      'Gateway disimpan (hanya selama aplikasi berjalan).',
+                    );
+                  },
+                  icon: const Icon(Icons.save),
+                  label: const Text('Simpan Gateway'),
+                ),
+                const SizedBox(height: AppSpace.md),
+                const Text(
+                  'Catatan: gateway dan kata sandi admin tidak disimpan '
+                  'permanen. Keduanya kembali ke nilai awal '
+                  '(192.168.0.1 / admin) setiap aplikasi ditutup.',
+                  style: AppText.hint,
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpace.xl),
           ],
         );
       },

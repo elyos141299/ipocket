@@ -536,16 +536,10 @@ class ReqprocClient {
     );
   }
 
-  /// Mulai ulang perangkat: POST REBOOT_DEVICE (pola standar
-  /// ZTE; id ini tidak muncul di konteks dump com.js yang
-  /// terkumpul — hasil mentahnya tercatat di log untuk
-  /// verifikasi di perangkat asli).
+  /// Mulai ulang perangkat: POST REBOOT_DEVICE {} — PASTI sejak
+  /// FULL-SPEC-BCD.md (D18, dari file JS WebUI utuh): fungsi aj
+  /// di com.js, tanpa field tambahan.
   Future<Map<String, dynamic>> rebootDevice() {
-    log.addNote(
-      'REBOOT_DEVICE: goformId pola standar ZTE, belum terbukti '
-      'di unit ini — nilai result mentah di respons ini adalah '
-      'verifikasinya.',
-    );
     return procPost(
       <String, String>{'goformId': 'REBOOT_DEVICE'},
       note: 'Mulai ulang perangkat (REBOOT_DEVICE)',

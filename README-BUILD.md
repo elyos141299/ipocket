@@ -4,7 +4,9 @@ Aplikasi Flutter "iPocket": panel status untuk MiFi Advan iPocket MF01
 (API reqproc perangkat) — pantau sinyal, baterai, perangkat terhubung,
 dan SMS tanpa membuka browser. Spesifikasi API: `../API-CONTRACT.md`.
 
-Versi: **v1.5** — perbaikan format `sms_time` kirim SMS
+Versi: **v2.0** — Gelombang B+C+D LENGKAP dalam satu build +
+poles tampilan profesional (lihat bagian **v2.0** di bawah).
+Sebelumnya **v1.5** — perbaikan format `sms_time` kirim SMS
 sesuai definisi `getCurrentTimeString()` lib.js (zona polos
 tanpa zero-pad: WIB `"+7"`, bukan `"+07"` — penyebab pasti
 SEND_SMS `result "failure"`), dan auto-refresh status
@@ -265,6 +267,99 @@ user 23 Nov 2026 ±14:48; lihat addendum API-CONTRACT ±15:00):
    (15 detik di `discovery.dart`) BUKAN polling — tidak
    diubah.
 
+**v2.0** (Gelombang B+C+D sekaligus dari `../FULL-SPEC-BCD.md`
+— spek wire digali dari file JS WebUI UTUH yang diberikan user,
+bukan lagi sampel terpotong; semua goformId/field/enum di bawah
+mengikuti spek itu persis):
+
+1. **Pengaturan menjadi HUB gaya Settings iPhone** — tab
+   Pengaturan kini daftar grup (ikon dalam kotak aksen + judul +
+   chevron): Wi-Fi, Jaringan, Perangkat, Lanjutan, Sistem, plus
+   kartu Aplikasi (gateway, dipertahankan). Tiap grup membuka
+   sub-halaman sendiri di `lib/screens/settings/`.
+2. **Wi-Fi (B)** — Pengaturan Cepat (`QUICK_SETUP_EX` + prefill
+   utuh); Wi-Fi Utama (`SET_WIFI_SSID1_SETTINGS` dengan aturan
+   kondisional AuthMode persis spek: WPA → shared_mode=cipher +
+   passphrase Base64, SHARED/WEP → kunci WEP + satu WEPxSelect;
+   saklar Wi-Fi `SET_WIFI_INFO`; batas akses = `MAX_Access_num`
+   — konflik "32 vs 3" TUTUP: 32 = `MAX_Station_num` kapabilitas,
+   tidak pernah dikirim); Wi-Fi Lanjutan (`SET_WIFI_INFO`
+   advance: negara/kanal/batas akses; mode/band/rate diteruskan
+   apa adanya, `wifi_band`/`wifi_11n_cap` tidak dikirim karena
+   flag support mati di unit ini); WPS (`WIFI_WPS_SET`, `wps_pin`
+   hanya mode PIN, pemisah PIN dibuang); Filter MAC
+   (`WIFI_MAC_FILTER`, hanya daftar sesuai mode yang dikirim;
+   mode Putih memakai KONFIRMASI KERAS yang menampilkan daftar
+   final + MAC perangkat user sendiri); Hemat Daya (cakupan
+   `SET_WIFI_COVERAGE`; waktu tidur BACA-SAJA — enum nilainya
+   di set.js yang tidak tersedia).
+3. **Jaringan (C)** — Mode Koneksi (`SET_CONNECTION_MODE`);
+   Pilih Jaringan (`SCAN_NETWORK` + polling
+   `m_netselect_status`/`m_netselect_result` tiap 1000 ms,
+   `SET_NETWORK {NetworkNumber, Rat 0/2/7, nSubrat}`;
+   `net_select` ditampilkan baca-saja — enum
+   `SET_BEARER_PREFERENCE` GELAP, tidak dibuat pemilih); APN
+   (`APN_PROC_EX` save/set_default/delete, profil diurai dari
+   pemisah "($)"); Manajemen Data (`DATA_LIMIT_SETTING`,
+   pengali format `<n>_<pengali>` dipertahankan; tanggal reset
+   memang tidak ada di wire).
+4. **Perangkat Terhubung (B6)** — daftar station/lan + nama
+   dari `cmd=hostNameList`; Blokir/Lepas blokir pola persis
+   `{ACL_mode:"2", macFilteringMode:"2", wifi_hostname_black_list,
+   wifi_mac_black_list}`; Ganti nama `EDIT_HOSTNAME {mac,
+   hostname}` + validasi karakter WebUI.
+5. **Lanjutan (D)** — Router & DHCP (`DHCP_SETTING` utuh +
+   `dhcp_reboot_flag:1`, peringatan ganti IP); Firewall: FW_SYS
+   (manajemen jarak jauh + ping WAN), Filter Port
+   (`BASIC_SETTING`, `ADD/DEL_IP_PORT_FILETER_V4V6` — hapus
+   hanya v4, format delete_id v6 tidak pasti), Port Forwarding
+   (`VIRTUAL_SERVER`, `FW_FORWARD_ADD/DEL`), Port Mapping
+   (`ADD/DEL_PORT_MAP`), DMZ (`DMZ_SETTING`, IP hanya bila
+   aktif), Filter URL (`websURLFilters`, `URL_FILTER_ADD/
+   DELETE`), UPnP (`UPNP_SETTING`); SNTP (POST `SNTP` persis
+   spek: timezone dibelah "_", tanpa detik; `SNTP_Getdatastatic`
+   saat buka & setelah simpan); PIN SIM BACA-SAJA
+   (pinnumber/pin_status/puknumber — halaman PIN nonaktif total
+   di perangkat); FOTA (`IF_UPGRADE {select_op:"check",
+   ota_manual_check_roam_state:1}` + status + `SetUpgAutoSetting`;
+   select_op lanjutan tidak ditawarkan, SEBAGIAN).
+6. **Sistem (D18)** — Info Perangkat (model, SW/HW dicoba dari
+   cmd versi umum, IP/MAC/operator), Mulai Ulang
+   (`REBOOT_DEVICE {}` — kini PASTI dari spek, catatan "belum
+   terbukti" di klien dihapus), Matikan (`TURN_OFF_DEVICE {}`),
+   Setel Ulang Pabrik (`RESTORE_FACTORY_SETTINGS {}`, konfirmasi
+   ganda), Ganti Kata Sandi (dipindah ke sini dari hub lama).
+7. **DILEWATI total** (support mati di set.js unit ini):
+   Multi SSID/Guest (`HAS_MULTI_SSID:false`), DDNS
+   (`DDNS_SUPPORT:false`), HTTP Share/Kartu SD
+   (`SD_CARD_SUPPORT:false` — status SD tetap ditampilkan
+   dashboard seperti sebelumnya).
+8. **Keamanan UX** — konfirmasi untuk: Matikan, Reset Pabrik
+   (ganda), Filter MAC mode Putih (keras), DMZ, blokir
+   perangkat, pindah jaringan, DHCP (reboot + peringatan IP),
+   dan simpan Wi-Fi Utama/Lanjutan/Pengaturan Cepat (peringatan
+   putus & sambung ulang manual bila SSID/sandi berubah).
+   Setelah perintah reboot/matikan/reset, UI menjelaskan
+   aplikasi akan kehilangan koneksi sesaat.
+9. **Poles profesional** — token desain terpusat
+   `lib/theme.dart` (`AppColors`/`AppSpace`/`AppRadius`/
+   `AppText` + `buildAppTheme()` dengan tema komponen seragam:
+   kartu radius 16, field terisi panel tanpa garis, tombol &
+   saklar pink) dan widget bersama `lib/widgets.dart`
+   (`SectionLabel` uppercase redup, `HubRow`/`HubGroup`,
+   `InfoRow`/`InfoCard`, `FormCard`, keadaan
+   `LoadingState`/`EmptyState`/`ErrorState` yang rapi,
+   `SaveButton`, `confirmAction`, `SettingsPageShell`).
+   Dashboard Status, SMS, dan Diagnostik diselaraskan ke token
+   yang sama (nilai warna identik dengan v1.4 — perilaku
+   terbukti TIDAK berubah: polling 5 detik, login, SMS,
+   sambung/putus utuh).
+10. **Kode baru**: `lib/settings_api.dart` (lapisan API B/C/D
+    di atas `ReqprocClient.procGet/procPost`) dan
+    `lib/settings_models.dart` (parser toleran semua data
+    pengaturan). `AppState` menambah getter `api` +
+    `turnOffDevice()`/`restoreFactory()`.
+
 Asumsi tampilan lingkaran data: perangkat user TIDAK mengatur
 batas data (Manajemen Data "Tidak diatur"), jadi ring digambar
 proporsional terhadap **patokan tampilan 10 GB** — angka di tengah
@@ -322,6 +417,22 @@ app/
     │                       # v1.4: + js/lib.js konteks ±2000 —
     │                       # buruan getCurrentTimeString/
     │                       # encodeMessage/escapeMessage
+    ├── theme.dart          # v2.0: token desain terpusat
+    │                       # (AppColors/AppSpace/AppRadius/AppText)
+    │                       # + buildAppTheme() — dipakai SEMUA tab
+    ├── widgets.dart        # v2.0: widget bersama (SectionLabel,
+    │                       # HubRow/HubGroup, InfoRow/InfoCard,
+    │                       # FormCard, Loading/Empty/ErrorState,
+    │                       # SaveButton, confirmAction,
+    │                       # SettingsPageShell, field form standar)
+    ├── settings_models.dart # v2.0: parser toleran data pengaturan
+    │                       # B/C/D (WifiBasic, WifiAdvance, WpsInfo,
+    │                       # MacFilterInfo, hostNameList, APN "($)",
+    │                       # NetSelectEntry, DataLimitInfo, DhcpInfo,
+    │                       # rule firewall, SntpInfo, FotaInfo, PinInfo)
+    ├── settings_api.dart   # v2.0: lapisan API Gelombang B/C/D di
+    │                       # atas ReqprocClient (semua goformId &
+    │                       # field persis FULL-SPEC-BCD.md)
     ├── models.dart         # DeviceStatus reqproc (parse toleran:
     │                       # baterai persen/level, sinyal per jenis jaringan,
     │                       # data_counter Map/string, station_list
@@ -344,8 +455,34 @@ app/
         ├── diagnostics_screen.dart # log request mentah + Tes Lengkap
         │                       # + Probe Field Kosong + Probe Baterai
         │                       # & Bulanan + Penemuan Terarah JS
-        └── settings_screen.dart  # gateway + mulai ulang perangkat
-                                # + ganti kata sandi login
+        ├── settings_screen.dart  # v2.0: HUB Pengaturan gaya
+        │                       # Settings iPhone (grup Wi-Fi,
+        │                       # Jaringan, Perangkat, Lanjutan,
+        │                       # Sistem) + kartu gateway aplikasi
+        └── settings/           # v2.0: sub-halaman pengaturan
+            ├── wifi_quick_page.dart    # Pengaturan Cepat (QUICK_SETUP_EX)
+            ├── wifi_main_page.dart     # Wi-Fi Utama + saklar Wi-Fi
+            ├── wifi_advanced_page.dart # Wi-Fi Lanjutan
+            ├── wifi_wps_page.dart      # WPS (PIN/PBC)
+            ├── wifi_mac_page.dart      # Filter MAC (konfirmasi keras Putih)
+            ├── wifi_power_page.dart    # Hemat Daya (cakupan + tidur baca-saja)
+            ├── devices_page.dart       # Perangkat Terhubung (blokir/rename)
+            ├── net_mode_page.dart      # Mode Koneksi
+            ├── net_select_page.dart    # Pilih Jaringan (scan + polling)
+            ├── net_apn_page.dart       # APN (daftar + form profil)
+            ├── net_data_page.dart      # Manajemen Data
+            ├── adv_router_page.dart    # Router & DHCP
+            ├── adv_firewall_page.dart  # hub Firewall + FW_SYS + UPnP
+            ├── fw_filter_page.dart     # Filter Port (+ form tambah)
+            ├── fw_forward_page.dart    # Port Forwarding
+            ├── fw_portmap_page.dart    # Port Mapping
+            ├── fw_dmz_page.dart        # DMZ
+            ├── fw_url_page.dart        # Filter URL
+            ├── adv_sntp_page.dart      # Waktu (SNTP)
+            ├── adv_pin_page.dart       # PIN SIM (baca-saja)
+            ├── adv_fota_page.dart      # Pembaruan Firmware (FOTA)
+            └── system_page.dart        # Info, daya (reboot/matikan/
+                                    # reset pabrik), ganti kata sandi
 ```
 
 Tab Diagnostik adalah alat verifikasi lapangan: tombol **Jalankan

@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'discovery.dart';
 import 'models.dart';
 import 'reqproc_client.dart';
+import 'settings_api.dart';
 
 /// State aplikasi bersama (singleton sederhana, tanpa package tambahan).
 ///
@@ -23,6 +24,11 @@ class AppState extends ChangeNotifier {
 
   final DiagnosticsLog log = DiagnosticsLog();
   late ReqprocClient client;
+
+  /// Lapisan API pengaturan Gelombang B/C/D di atas klien aktif
+  /// (dibuat segar tiap akses agar selalu mengikuti [client]
+  /// terbaru setelah ganti gateway).
+  SettingsApi get api => SettingsApi(client);
 
   /// True setelah login reqproc berhasil (result "0"/"4").
   bool loggedIn = false;
@@ -327,6 +333,54 @@ class AppState extends ChangeNotifier {
       return 'Tidak ada respons utuh dari MiFi ($e) — wajar bila '
           'perangkat langsung mulai ulang. Tunggu ±1 menit lalu '
           'masuk lagi.';
+    } finally {
+      busy = false;
+      notifyListeners();
+    }
+  }
+
+  /// Matikan perangkat (TURN_OFF_DEVICE {} — FULL-SPEC D18).
+  /// Setelah perintah ini perangkat MATI total: aplikasi pasti
+  /// kehilangan koneksi sampai user menyalakan MiFi manual.
+  Future<String> turnOffDevice() async {
+    busy = true;
+    notifyListeners();
+    try {
+      final res = await api.turnOffDevice();
+      final r = res['result']?.toString();
+      loggedIn = false;
+      return 'Perintah matikan terkirim (result=${r ?? 'kosong'}). '
+          'MiFi akan mati — nyalakan lagi manual dengan tombol '
+          'power bila ingin memakainya.';
+    } catch (e) {
+      loggedIn = false;
+      return 'Tidak ada respons utuh dari MiFi ($e) — wajar bila '
+          'perangkat langsung mati. Periksa lampu MiFi-mu.';
+    } finally {
+      busy = false;
+      notifyListeners();
+    }
+  }
+
+  /// Setel ulang pabrik (RESTORE_FACTORY_SETTINGS {} — FULL-SPEC
+  /// D18). SEMUA pengaturan perangkat kembali ke awal pabrik
+  /// (SSID, sandi WiFi, sandi admin) dan perangkat mulai ulang.
+  Future<String> restoreFactory() async {
+    busy = true;
+    notifyListeners();
+    try {
+      final res = await api.restoreFactory();
+      final r = res['result']?.toString();
+      loggedIn = false;
+      client.clearSession();
+      return 'Perintah setel ulang pabrik terkirim '
+          '(result=${r ?? 'kosong'}). MiFi kembali ke pengaturan '
+          'awal dan mulai ulang — sambungkan ulang ke WiFi '
+          'bawaan perangkat, lalu masuk dengan sandi awal.';
+    } catch (e) {
+      return 'Tidak ada respons utuh dari MiFi ($e) — wajar bila '
+          'perangkat langsung mulai ulang untuk reset. Tunggu '
+          '±1 menit lalu sambungkan ulang ke WiFi bawaan.';
     } finally {
       busy = false;
       notifyListeners();

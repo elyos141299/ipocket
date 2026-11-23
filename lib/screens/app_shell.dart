@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../theme.dart';
 import 'diagnostics_screen.dart';
 import 'settings_screen.dart';
 import 'sms_screen.dart';
@@ -32,11 +33,11 @@ class _AppShellState extends State<AppShell> {
         ],
       ),
       bottomNavigationBar: NavigationBar(
-        // Tab bar tema gelap v1.4: latar panel gelap, indikator
+        // Tab bar dari token tema (v2.0): latar kartu, indikator
         // aktif pink Advan, ikon & label putih (redup saat tidak
         // aktif, putih penuh saat aktif).
-        backgroundColor: const Color(0xFF1E1A24),
-        indicatorColor: const Color(0xFFEC008D),
+        backgroundColor: AppColors.card,
+        indicatorColor: AppColors.primary,
         selectedIndex: _index,
         onDestinationSelected: (i) => setState(() => _index = i),
         destinations: const <NavigationDestination>[

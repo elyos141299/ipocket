@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../app_state.dart';
 import '../models.dart';
+import '../theme.dart';
 
 /// Layar SMS PENUH (Gelombang A): daftar dari sms_data_total
 /// (content di-decode hex UTF-16BE di model), kirim (SEND_SMS),
@@ -18,7 +19,7 @@ class SmsScreen extends StatefulWidget {
 }
 
 class _SmsScreenState extends State<SmsScreen> {
-  static const Color _primary = Color(0xFFEC008D);
+  static const Color _primary = AppColors.primary;
 
   @override
   void initState() {
