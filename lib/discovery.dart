@@ -614,3 +614,142 @@ class ApiDiscoveryAdvanced extends ApiDiscovery {
     );
   }
 }
+
+/// Penemuan API Final (v0.4).
+///
+/// js/main.js yang terbaca di v0.3 membocorkan peta modul RequireJS
+/// WebUI ini: modul "service" dipetakan ke file `com`, fitur SIM/SMS
+/// ke `sim_device`, jaringan ke `net`, WiFi ke `wifi` — dan main.js
+/// sendiri memuat `DEVICE + "/set"` serta `"set service lib"`. Jadi
+/// file layanan sebenarnya hampir pasti enam file ini:
+///
+///   js/com.js, js/set.js, js/lib.js, js/sim_device.js, js/net.js,
+///   js/wifi.js
+///
+/// Tahap final mengambil persis keenamnya. File yang terbaca dipindai
+/// kandidat endpoint-nya (regex yang sama), DITAMBAH pindaian konteks
+/// kata kunci pemanggilan API (ajax, cgi, api, goform, cmd, method,
+/// action, url) ±120 karakter — di sinilah URL API asli harusnya
+/// muncul verbatim. Khusus js/set.js (file konstanta; isinya
+/// menentukan awalan path API): bila kecil (< 12000 byte), isinya
+/// dicatat UTUH ke log. Semua READ-ONLY.
+class ApiDiscoveryFinal extends ApiDiscoveryAdvanced {
+  ApiDiscoveryFinal({required super.gateway, required super.log});
+
+  /// Enam file layanan hasil petunjuk require.config di js/main.js.
+  static const List<String> _targetFiles = <String>[
+    'js/com.js',
+    'js/set.js',
+    'js/lib.js',
+    'js/sim_device.js',
+    'js/net.js',
+    'js/wifi.js',
+  ];
+
+  /// Kata kunci pemanggilan API: konteks di sekitar kemunculannya
+  /// memperlihatkan URL/metode yang benar-benar dipakai WebUI.
+  static const List<String> _contextKeywords = <String>[
+    'ajax',
+    'cgi',
+    'api',
+    'goform',
+    'cmd',
+    'method',
+    'action',
+    'url',
+  ];
+
+  /// Pindai konteks kata kunci di satu file: satu catatan hitungan
+  /// untuk semua kata, lalu potongan ±120 karakter per kata yang
+  /// ditemukan (maks [budgetPerWord] kemunculan per kata).
+  void _scanKeywordContexts(
+    String name,
+    String js, {
+    required int budgetPerWord,
+  }) {
+    final counts = <String, int>{};
+    final perWord = <String, List<String>>{};
+    for (final kw in _contextKeywords) {
+      final re = RegExp(RegExp.escape(kw), caseSensitive: false);
+      final matches = re.allMatches(js).toList();
+      counts[kw] = matches.length;
+      if (matches.isEmpty) continue;
+      final snippets = <String>[];
+      for (final m in matches) {
+        if (snippets.length >= budgetPerWord) break;
+        final start = m.start - 120 < 0 ? 0 : m.start - 120;
+        final end = m.end + 120 > js.length ? js.length : m.end + 120;
+        snippets.add(
+          js.substring(start, end).replaceAll(RegExp(r'\s+'), ' ').trim(),
+        );
+      }
+      perWord[kw] = snippets;
+    }
+    log.addNote(
+      'Kata kunci konteks di $name — '
+      '${_contextKeywords.map((k) => '$k: ${counts[k]}').join(', ')}',
+    );
+    perWord.forEach((kw, snippets) {
+      _logChunks(
+        'Konteks "$kw" di $name (${snippets.length}):',
+        snippets.join('\n---\n'),
+      );
+    });
+  }
+
+  /// Jalankan penemuan final: ambil enam file layanan, pindai.
+  Future<void> runFinal() async {
+    log.addNote('=== PENEMUAN API FINAL DIMULAI ===');
+
+    final statuses = <String, int?>{}; // path → status (null = gagal)
+    final globalCandidates = <String>{};
+
+    for (final path in _targetFiles) {
+      final url = '$_base/$path';
+      final name = ApiDiscovery._fileName(url);
+      final res = await _getRaw(
+        Uri.parse(url),
+        timeout: const Duration(seconds: 15),
+        note: 'Penemuan final: file $path',
+      );
+      statuses[path] = res?.statusCode;
+      if (res == null) continue;
+      if (res.statusCode != 200) {
+        log.addNote('File $name: status HTTP ${res.statusCode}, dilewati.');
+        continue;
+      }
+      final js = res.body;
+
+      final candidates = _scanEndpoints(js);
+      globalCandidates.addAll(candidates);
+      if (candidates.isEmpty) {
+        log.addNote('Endpoint kandidat dari $name: (tidak ada)');
+      } else {
+        _logChunks(
+          'Endpoint kandidat dari $name (${candidates.length}):',
+          candidates.join('\n'),
+        );
+      }
+
+      // com.js & lib.js = lapisan layanan inti: anggaran konteks
+      // per kata lebih besar (40) dibanding file fitur (25).
+      final budget = (name == 'com.js' || name == 'lib.js') ? 40 : 25;
+      _scanKeywordContexts(name, js, budgetPerWord: budget);
+
+      // set.js = konstanta awalan path API — catat utuh bila kecil.
+      if (path == 'js/set.js' && res.bodyBytes.length < 12000) {
+        _logChunks(
+          'Isi lengkap set.js (${res.bodyBytes.length} byte):',
+          js,
+        );
+      }
+    }
+
+    log.addNote(
+      '=== PENEMUAN API FINAL SELESAI ===\n'
+      'Ringkasan: '
+      '${_targetFiles.map((p) => '$p → ${statuses[p] ?? 'gagal jaringan'}').join(', ')}; '
+      '${globalCandidates.length} endpoint kandidat unik dari tahap ini.',
+    );
+  }
+}

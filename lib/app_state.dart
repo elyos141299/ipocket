@@ -163,4 +163,21 @@ class AppState extends ChangeNotifier {
       notifyListeners();
     }
   }
+
+  /// Jalankan penemuan API final (v0.4): ambil enam file layanan
+  /// WebUI yang terpetakan dari require.config di js/main.js
+  /// (js/com.js, js/set.js, js/lib.js, js/sim_device.js, js/net.js,
+  /// js/wifi.js), pindai kandidat endpoint + konteks kata kunci
+  /// pemanggilan API-nya; isi set.js dicatat utuh bila kecil.
+  /// Semua hasil tercatat di log diagnostik yang sama.
+  Future<void> runDiscoveryFinal() async {
+    busy = true;
+    notifyListeners();
+    try {
+      await ApiDiscoveryFinal(gateway: gateway, log: log).runFinal();
+    } finally {
+      busy = false;
+      notifyListeners();
+    }
+  }
 }

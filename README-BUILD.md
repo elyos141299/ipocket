@@ -4,12 +4,19 @@ Aplikasi Flutter "iPocket": panel status untuk MiFi Advan iPocket MF01
 (ZTE goform) — pantau sinyal, baterai, perangkat terhubung, dan SMS
 tanpa membuka browser. Spesifikasi API: `../API-CONTRACT.md`.
 
-Versi: **v0.3** — penemuan API lanjutan (v0.2 membuktikan firmware
-perangkat menjawab 404 untuk /goform/* dan WebUI-nya RequireJS +
-Knockout yang modul aplikasinya dimuat dinamis; v0.3 memetakan tag
-`<script>` index.html, mencoba kamus path modul umum, dan men-crawl
-nama modul require/define untuk menemukan JS aplikasi aslinya;
-lihat `lib/discovery.dart`).
+Versi: **v0.4** — penemuan API final (ambil com/set/lib/sim_device/
+net/wifi). v0.2 membuktikan firmware perangkat menjawab 404 untuk
+/goform/* dan WebUI-nya RequireJS + Knockout yang modul aplikasinya
+dimuat dinamis; v0.3 memetakan tag `<script>` index.html, mencoba
+kamus path modul umum, dan men-crawl nama modul require/define —
+hasilnya js/main.js terbaca dan membocorkan peta require.config:
+"service" → `com`, SIM/SMS → `sim_device`, jaringan → `net`, WiFi →
+`wifi`, plus petunjuk file `set` dan `lib`. v0.4 mengambil persis
+enam file layanan itu (`js/com.js`, `js/set.js`, `js/lib.js`,
+`js/sim_device.js`, `js/net.js`, `js/wifi.js`), memindai kandidat
+endpoint + konteks kata kunci pemanggilan API di dalamnya, dan
+mencatat isi `set.js` secara utuh bila kecil; lihat
+`lib/discovery.dart`.
 
 ## Struktur proyek
 
@@ -33,6 +40,10 @@ app/
     │                       # verbatim, kamus modul, crawl require/
     │                       # define + paths:, pindaian kata kunci
     │                       # khusus (goform/cmd_process/.cgi/proc_*)
+    │                       # v0.4: penemuan final — ambil 6 file
+    │                       # layanan (com/set/lib/sim_device/net/
+    │                       # wifi), konteks ajax/cgi/api/cmd/url,
+    │                       # isi set.js utuh bila < 12000 byte
     ├── models.dart         # DeviceStatus (parse longgar, anti-crash) +
     │                       # SmsMessage + decode hex UTF-16BE
     └── screens/
@@ -57,7 +68,16 @@ status 404 pun dicatat sebagai informasi layout), lalu mengekstrak
 nama modul dari `require([...])`/`define([...])` dan nilai `paths:`
 dari require.config untuk mengunduh file JS aplikasi dan
 memindainya, termasuk pindaian khusus kata kunci `goform`,
-`cmd_process`, `.cgi`, `proc_get`, `proc_post`.
+`cmd_process`, `.cgi`, `proc_get`, `proc_post`. Tombol keempat,
+**Penemuan API Final** (v0.4), mengambil enam file layanan yang
+terpetakan dari peta require.config di js/main.js — `js/com.js`,
+`js/set.js`, `js/lib.js`, `js/sim_device.js`, `js/net.js`,
+`js/wifi.js` — lalu memindai kandidat endpoint dan konteks kata
+kunci pemanggilan API (`ajax`, `cgi`, `api`, `goform`, `cmd`,
+`method`, `action`, `url`; anggaran konteks lebih besar untuk
+com.js dan lib.js), dan mencatat isi `set.js` secara utuh bila
+ukurannya di bawah 12000 byte karena file konstanta itu menentukan
+awalan path API.
 
 ## Build lokal (butuh Mac untuk iOS)
 
