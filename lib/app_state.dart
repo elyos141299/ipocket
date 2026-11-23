@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
+import 'discovery.dart';
 import 'models.dart';
 import 'zte_client.dart';
 
@@ -127,6 +128,20 @@ class AppState extends ChangeNotifier {
     try {
       await client.runFullTest(adminPassword);
       await refreshStatus();
+    } finally {
+      busy = false;
+      notifyListeners();
+    }
+  }
+
+  /// Jalankan mode penemuan API: baca kode WebUI dari perangkat dan
+  /// cari endpoint aslinya (pengganti goform yang terbukti 404).
+  /// Semua hasil tercatat di log diagnostik yang sama.
+  Future<void> runDiscovery() async {
+    busy = true;
+    notifyListeners();
+    try {
+      await ApiDiscovery(gateway: gateway, log: log).run();
     } finally {
       busy = false;
       notifyListeners();

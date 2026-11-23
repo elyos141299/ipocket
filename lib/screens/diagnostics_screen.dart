@@ -31,6 +31,11 @@ class DiagnosticsScreen extends StatelessWidget {
                     icon: const Icon(Icons.play_arrow),
                     label: const Text('Jalankan Tes Lengkap'),
                   ),
+                  FilledButton.icon(
+                    onPressed: state.busy ? null : () => state.runDiscovery(),
+                    icon: const Icon(Icons.search),
+                    label: const Text('Jalankan Penemuan API'),
+                  ),
                   OutlinedButton.icon(
                     onPressed: () async {
                       await Clipboard.setData(ClipboardData(text: text));

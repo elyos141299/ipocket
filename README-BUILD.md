@@ -4,6 +4,11 @@ Aplikasi Flutter "iPocket": panel status untuk MiFi Advan iPocket MF01
 (ZTE goform) — pantau sinyal, baterai, perangkat terhubung, dan SMS
 tanpa membuka browser. Spesifikasi API: `../API-CONTRACT.md`.
 
+Versi: **v0.2** — mode penemuan API (firmware perangkat terbukti
+menjawab 404 untuk /goform/*, jadi endpoint asli ditemukan dengan
+membaca kode WebUI dari perangkat itu sendiri; lihat
+`lib/discovery.dart`).
+
 ## Struktur proyek
 
 ```
@@ -19,6 +24,9 @@ app/
     ├── zte_client.dart     # klien goform: Referer, cookie jar, login
     │                       # Gen B (LD/RD + SHA-256) → fallback Gen A
     │                       # (base64), status gabungan, SMS, log
+    ├── discovery.dart      # v0.2: penemuan API — unduh HTML + file JS
+    │                       # WebUI dari perangkat, pindai kandidat
+    │                       # endpoint & konteks panggilan AJAX/fetch
     ├── models.dart         # DeviceStatus (parse longgar, anti-crash) +
     │                       # SmsMessage + decode hex UTF-16BE
     └── screens/
@@ -32,7 +40,10 @@ app/
 Tab Diagnostik adalah alat verifikasi v0: tombol **Jalankan Tes
 Lengkap** menjalankan urutan LD/RD → login Gen B → login Gen A →
 status gabungan → SMS, dan semua request/respons mentah tercatat untuk
-di-screenshot dan dicocokkan dengan perangkat asli.
+di-screenshot dan dicocokkan dengan perangkat asli. Tombol kedua,
+**Jalankan Penemuan API** (v0.2), membaca HTML + file JS WebUI dari
+perangkat dan mencatat kandidat endpoint asli beserta konteks
+pemanggilannya ke log yang sama.
 
 ## Build lokal (butuh Mac untuk iOS)
 
