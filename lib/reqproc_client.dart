@@ -537,14 +537,55 @@ class ReqprocClient {
     return res['result']?.toString() == 'success';
   }
 
-  /// Probe Data Bulanan (v1.2): dua bentuk panggilan yang belum
-  /// pernah dicoba untuk data_counter — tanpa multi_data, plus
-  /// cmd traffic_alert_info (modul status_traffic_alert WebUI).
-  /// Dugaan kuat data_counter kosong karena rencana Manajemen
-  /// Data nonaktif di perangkat; probe ini pembuktiannya.
+  /// Probe Baterai & Bulanan (v1.2 "Probe Data Bulanan",
+  /// diperluas & diganti nama di v1.3).
+  ///
+  /// Bagian baterai (BARU v1.3): WebUI menampilkan baterai
+  /// sebagai PERSEN (73% saat inspeksi live 23 Nov 2026),
+  /// sedangkan dari panggilan gabungan battery_vol_percent
+  /// selalu "" dan battery_pers hanya level 0–3. Mengikuti
+  /// aturan emas probe v1.1 (field bisa rusak di panggilan
+  /// multi_data gabungan), tiga bentuk TANPA multi_data dicoba:
+  /// battery_vol_percent sendiri, battery_vol sendiri, dan
+  /// grup baterai kecil. Target: persen baterai asli.
+  ///
+  /// Bagian bulanan (dari v1.2, DIPERTAHANKAN): data_counter
+  /// tanpa multi_data + cmd traffic_alert_info (modul
+  /// status_traffic_alert WebUI). Hasil perangkat asli
+  /// (addendum 14:20) membuktikan keduanya "" karena rencana
+  /// Manajemen Data nonaktif — dipertahankan sebagai pembukti
+  /// ulang bila user mengaktifkan rencana data.
   /// Semua respons mentah tercatat lewat [procGet].
   Future<void> runMonthlyProbe() async {
-    log.addNote('=== PROBE DATA BULANAN DIMULAI ===');
+    log.addNote('=== PROBE BATERAI & BULANAN DIMULAI ===');
+    final batteryProbes = <({String label, Map<String, String> params})>[
+      (
+        label: 'battery_vol_percent sendiri (tanpa multi_data)',
+        params: <String, String>{'cmd': 'battery_vol_percent'},
+      ),
+      (
+        label: 'battery_vol sendiri (tanpa multi_data)',
+        params: <String, String>{'cmd': 'battery_vol'},
+      ),
+      (
+        label: 'grup baterai battery_pers,battery_vol_percent,'
+            'battery_charging,battery_vol (tanpa multi_data)',
+        params: <String, String>{
+          'cmd': 'battery_pers,battery_vol_percent,battery_charging,'
+              'battery_vol',
+        },
+      ),
+    ];
+    var step = 0;
+    for (final p in batteryProbes) {
+      step++;
+      log.addNote('Probe baterai $step/${batteryProbes.length}: ${p.label}');
+      try {
+        await procGet(p.params, note: 'Probe baterai: ${p.label}');
+      } catch (e) {
+        log.addNote('Probe baterai $step gagal: $e');
+      }
+    }
     try {
       await procGet(
         <String, String>{'cmd': 'data_counter'},
@@ -561,7 +602,7 @@ class ReqprocClient {
     } catch (e) {
       log.addNote('Probe traffic_alert_info gagal: $e');
     }
-    log.addNote('=== PROBE DATA BULANAN SELESAI ===');
+    log.addNote('=== PROBE BATERAI & BULANAN SELESAI ===');
   }
 
   /// Probe Field Kosong (v1.1): dari uji perangkat asli v1.0,

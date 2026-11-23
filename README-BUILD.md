@@ -4,9 +4,11 @@ Aplikasi Flutter "iPocket": panel status untuk MiFi Advan iPocket MF01
 (API reqproc perangkat) — pantau sinyal, baterai, perangkat terhubung,
 dan SMS tanpa membuka browser. Spesifikasi API: `../API-CONTRACT.md`.
 
-Versi: **v1.2** — tema Advan ter-push, dashboard tuntas,
-Gelombang A (SMS penuh + sambung/putus + reboot + ganti sandi),
-ikon aplikasi siap tanam.
+Versi: **v1.3** — batch presisi dari verifikasi v1.2: logo
+login glyph WiFi (CustomPaint, meniru Logo B), baris "Batas
+akses maksimum" dihapus, default laporan pengiriman SMS OFF,
+tombol baru Penemuan Terarah JS, dan Probe Data Bulanan
+diperluas menjadi Probe Baterai & Bulanan.
 Riwayat singkat: v0.2 membuktikan firmware
 perangkat menjawab 404 untuk /goform/*; penemuan bertingkat
 (v0.2–v0.4, aplikasi membaca JS WebUI dari perangkat: index →
@@ -141,6 +143,56 @@ multi_data gabungan):
    konfirmasi; sukses → sesi ditutup dan pengguna diarahkan
    ke layar login).
 
+**v1.3** (dari verifikasi perangkat asli v1.2, 23 Nov 2026 —
+ikon Logo B tampil di home screen, tema Advan, Clients/
+Perangkat Terhubung/SSID persis WebUI; lihat addendum
+API-CONTRACT 14:20. Catatan: langkah workflow penanam ikon
+dibuat setelah push v1.2 dan ikon terverifikasi tampil —
+paragraf logo di atas adalah catatan saat v1.2 ditulis):
+
+1. **Logo login = glyph WiFi** — layar masuk tidak lagi
+   memakai lingkaran huruf "i": widget `WifiLogoMark`
+   menggambar glyph WiFi (tiga busur + titik, gradasi pink
+   #F95FB4 → #EC008D) di atas kotak gelap membulat
+   #2A1530 → #16121A dengan **CustomPaint**, meniru Logo B.
+   Tanpa aset biner baru (push-files menolak biner; ikon PNG
+   tetap hanya untuk AppIcon lewat workflow).
+2. **Baris "Batas akses maksimum" dihapus** dari detail tab
+   Status: nilainya `MAX_Station_num` = kapabilitas
+   perangkat (32), menyesatkan — setting WebUI sebenarnya 3
+   dan field sumbernya belum ketemu (nanti dari hasil
+   Penemuan Terarah JS).
+3. **Pengaturan SMS: default laporan pengiriman OFF** —
+   inspeksi live membuktikan keadaan perangkat sebenarnya
+   "Nonaktif"; v1.2 keliru default ON. SMSC (+62816124) &
+   validitas (Maksimum) tetap.
+4. **Penemuan Terarah JS** — tombol baru di Diagnostik
+   (`ApiDiscoveryTargeted` di `discovery.dart`): unduh PENUH
+   `js/wifi.js`, `js/net.js`, `js/sim_device.js`, lalu untuk
+   kata kunci spesifik per file catat konteks **±1200
+   karakter di sekitar SETIAP kemunculan** ke log, dipecah
+   entri ≤3500 karakter TANPA membuang isi (jendela tumpang
+   tindih digabung; penanda file + kata kunci + nomor
+   segmen/potongan; case-insensitive). Kata kunci wifi.js:
+   goformId, setWifiBasic, getWifiBasic, MAX_Access, mac,
+   MacFilter, block, SET_WIFI, channel, Country. net.js:
+   DHCP_SETTING, lanDhcp, FILTER, DMZ, REBOOT, restart,
+   TURN_OFF, FOTA, SNTP, traffic. sim_device.js: sms,
+   SmsSetting, save_time, MessageCenter, status_save.
+   Tujuannya: memastikan nama field wire gelombang
+   pengaturan (simpan WiFi, filter MAC, DHCP, DMZ, reboot,
+   SNTP, pengaturan SMS) yang di dump v0.4 hanya terpotong.
+5. **Probe Baterai & Bulanan** — tombol "Probe Data Bulanan"
+   ganti nama & diperluas: tiga panggilan baterai TANPA
+   multi_data (`battery_vol_percent` sendiri, `battery_vol`
+   sendiri, grup `battery_pers,battery_vol_percent,
+   battery_charging,battery_vol`) memburu persen baterai
+   asli seperti WebUI (73% saat inspeksi live — dari
+   panggilan gabungan field-nya selalu ""). Dua panggilan
+   bulanan v1.2 (data_counter tanpa multi_data +
+   traffic_alert_info) DIPERTAHANKAN sebagai pembukti ulang
+   bila rencana data diaktifkan user.
+
 Asumsi tampilan lingkaran data: perangkat user TIDAK mengatur
 batas data (Manajemen Data "Tidak diatur"), jadi ring digambar
 proporsional terhadap **patokan tampilan 10 GB** — angka di tengah
@@ -176,7 +228,9 @@ app/
     │                       # ALL_DELETE_SMS, SET_MESSAGE_CENTER,
     │                       # CONNECT/DISCONNECT_NETWORK,
     │                       # REBOOT_DEVICE, CHANGE_PASSWORD),
-    │                       # Probe Data Bulanan
+    │                       # Probe Data Bulanan; v1.3: probe
+    │                       # diperluas baterai tanpa multi_data
+    │                       # (Probe Baterai & Bulanan)
     ├── discovery.dart      # v0.2: penemuan API — unduh HTML + file JS
     │                       # WebUI dari perangkat, pindai kandidat
     │                       # endpoint & konteks panggilan AJAX/fetch
@@ -188,6 +242,10 @@ app/
     │                       # layanan (com/set/lib/sim_device/net/
     │                       # wifi), konteks ajax/cgi/api/cmd/url,
     │                       # isi set.js utuh bila < 12000 byte
+    │                       # v1.3: penemuan terarah — unduh PENUH
+    │                       # wifi/net/sim_device.js, konteks
+    │                       # ±1200 karakter per kemunculan kata
+    │                       # kunci spesifik per file, tanpa potong
     ├── models.dart         # DeviceStatus reqproc (parse toleran:
     │                       # baterai persen/level, sinyal per jenis jaringan,
     │                       # data_counter Map/string, station_list
@@ -197,7 +255,8 @@ app/
     │                       # + WifiSsidInfo (grup SSID1)
     └── screens/
         ├── app_shell.dart        # AppBar + navigasi bawah 4 tab
-        ├── status_screen.dart    # dashboard: sambutan+login, header,
+        ├── status_screen.dart    # dashboard: sambutan+login (logo
+        │                       # WiFi CustomPaint sejak v1.3), header,
         │                       # tombol sambung/putus, lingkaran data
         │                       # bulanan/sesi, 4 tile, detail (SSID
         │                       # asli), daftar perangkat terhubung,
@@ -206,8 +265,8 @@ app/
         │                       # tulis/kirim, draf, hapus, tandai
         │                       # dibaca, hapus semua, pengaturan SMS
         ├── diagnostics_screen.dart # log request mentah + Tes Lengkap
-        │                       # + Probe Field Kosong + Probe Data
-        │                       # Bulanan
+        │                       # + Probe Field Kosong + Probe Baterai
+        │                       # & Bulanan + Penemuan Terarah JS
         └── settings_screen.dart  # gateway + mulai ulang perangkat
                                 # + ganti kata sandi login
 ```
@@ -221,9 +280,16 @@ kosong dari panggilan gabungan (`data_counter`, `station_list`,
 `lan_station_list`, `ssid`, grup `SSID1,HideSSID,AuthMode,
 MAX_Station_num`, dan kombinasi `data_counter` + counter sesi)
 satu per satu dan mencatat respons mentahnya. Tombol **Probe
-Data Bulanan** (v1.2) mencoba dua bentuk terakhir untuk
-data bulanan: `data_counter` tanpa multi_data dan
-`traffic_alert_info`. Tombol kedua,
+Baterai & Bulanan** (v1.2 sebagai "Probe Data Bulanan",
+diperluas v1.3) mencoba `battery_vol_percent`, `battery_vol`,
+dan grup baterai — semua tanpa multi_data — untuk memburu
+persen baterai asli, plus dua bentuk terakhir untuk data
+bulanan: `data_counter` tanpa multi_data dan
+`traffic_alert_info`. Tombol **Penemuan Terarah JS** (v1.3)
+mengunduh penuh `js/wifi.js`, `js/net.js`, `js/sim_device.js`
+dan mencatat konteks ±1200 karakter di sekitar setiap
+kemunculan kata kunci spesifik per file (nama field wire
+gelombang pengaturan) tanpa memotong isi konteks. Tombol kedua,
 **Jalankan Penemuan API** (v0.2), membaca HTML + file JS WebUI dari
 perangkat dan mencatat kandidat endpoint asli beserta konteks
 pemanggilannya ke log yang sama. Tombol ketiga, **Penemuan API

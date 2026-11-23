@@ -753,3 +753,180 @@ class ApiDiscoveryFinal extends ApiDiscoveryAdvanced {
     );
   }
 }
+
+/// Penemuan Terarah JS (v1.3).
+///
+/// Penemuan Final (v0.4) hanya mencatat SAMPEL tiap file JS:
+/// konteks kata kunci umum ±120 karakter dan isi terpotong
+/// ±2000 karakter per entri — terlalu dangkal untuk memastikan
+/// nama field wire gelombang pengaturan berikutnya (simpan WiFi,
+/// filter MAC, DHCP, DMZ, reboot, SNTP, pengaturan SMS, dll).
+///
+/// Mode terarah ini mengunduh PENUH tiga file fitur —
+/// js/wifi.js, js/net.js, js/sim_device.js — dan untuk daftar
+/// kata kunci SPESIFIK per file mencatat konteks ±1200 karakter
+/// di sekitar SETIAP kemunculan ke log, dipecah entri ≤3500
+/// karakter TANPA membuang isi konteks (jendela yang tumpang
+/// tindih digabung, jadi tidak ada teks dobel maupun terpotong).
+/// Tiap entri berpenanda file + kata kunci + nomor segmen/
+/// potongan. Pencarian case-insensitive; ejaan kata kunci yang
+/// hanya beda huruf besar/kecil (DMZ/dmz, SNTP/sntp,
+/// traffic/Traffic) dicari sekali. File yang gagal diunduh
+/// atau 404 dicatat apa adanya. Semua READ-ONLY.
+class ApiDiscoveryTargeted extends ApiDiscovery {
+  ApiDiscoveryTargeted({required super.gateway, required super.log});
+
+  /// File target → kata kunci yang diburu di dalamnya.
+  static const Map<String, List<String>> _targets =
+      <String, List<String>>{
+    'js/wifi.js': <String>[
+      'goformId',
+      'setWifiBasic',
+      'getWifiBasic',
+      'MAX_Access',
+      'mac',
+      'MacFilter',
+      'block',
+      'SET_WIFI',
+      'channel',
+      'Country',
+    ],
+    'js/net.js': <String>[
+      'DHCP_SETTING',
+      'lanDhcp',
+      'FILTER',
+      'DMZ',
+      'dmz',
+      'REBOOT',
+      'restart',
+      'TURN_OFF',
+      'FOTA',
+      'SNTP',
+      'sntp',
+      'traffic',
+      'Traffic',
+    ],
+    'js/sim_device.js': <String>[
+      'sms',
+      'SmsSetting',
+      'save_time',
+      'MessageCenter',
+      'status_save',
+    ],
+  };
+
+  /// Setengah lebar jendela konteks di sekitar kemunculan.
+  static const int _contextRadius = 1200;
+
+  /// Batas ukuran satu entri log untuk mode ini.
+  static const int _entryLimit = 3500;
+
+  /// Catat [text] ke log dalam potongan ≤[_entryLimit] karakter,
+  /// diusahakan putus di batas baris, dengan penanda "potongan N"
+  /// pada [title]. Isi TIDAK pernah dibuang — hanya dipecah
+  /// antar-entri (berbeda dari _truncate klien yang memotong).
+  void _logTargeted(String title, String text) {
+    if (text.length <= _entryLimit) {
+      log.addNote('$title\n$text');
+      return;
+    }
+    var part = 1;
+    var rest = text;
+    while (rest.isNotEmpty) {
+      var chunk = rest;
+      var advance = rest.length;
+      if (rest.length > _entryLimit) {
+        var cut = rest.lastIndexOf('\n', _entryLimit);
+        if (cut <= 0) cut = _entryLimit;
+        chunk = rest.substring(0, cut);
+        advance = cut + (rest[cut] == '\n' ? 1 : 0);
+      }
+      log.addNote('$title (potongan $part)\n$chunk');
+      part++;
+      rest = rest.substring(advance);
+    }
+  }
+
+  /// Cari semua kemunculan [keyword] (case-insensitive) di [js],
+  /// gabung jendela konteks ±[_contextRadius] yang tumpang
+  /// tindih menjadi segmen, lalu catat tiap segmen ke log
+  /// dengan penanda file + kata kunci + nomor segmen.
+  void _scanTargeted(String file, String keyword, String js) {
+    final re = RegExp(RegExp.escape(keyword), caseSensitive: false);
+    final matches = re.allMatches(js).toList();
+    if (matches.isEmpty) {
+      log.addNote('[$file] kata kunci "$keyword": 0 kemunculan.');
+      return;
+    }
+    // Jendela konteks tiap kemunculan: [awal, akhir, jumlah
+    // kemunculan di dalam segmen]. Digabung bila tumpang tindih.
+    final windows = <List<int>>[];
+    for (final m in matches) {
+      final start =
+          m.start - _contextRadius < 0 ? 0 : m.start - _contextRadius;
+      final end = m.end + _contextRadius > js.length
+          ? js.length
+          : m.end + _contextRadius;
+      if (windows.isNotEmpty && start <= windows.last[1]) {
+        if (end > windows.last[1]) windows.last[1] = end;
+        windows.last[2]++;
+      } else {
+        windows.add(<int>[start, end, 1]);
+      }
+    }
+    log.addNote(
+      '[$file] kata kunci "$keyword": ${matches.length} kemunculan, '
+      '${windows.length} segmen konteks.',
+    );
+    var seg = 0;
+    for (final w in windows) {
+      seg++;
+      _logTargeted(
+        '[$file] kata kunci "$keyword" — segmen $seg/${windows.length} '
+        '(isi segmen: ${w[2]} kemunculan, posisi ${w[0]}–${w[1]})',
+        js.substring(w[0], w[1]),
+      );
+    }
+  }
+
+  /// Jalankan penemuan terarah: unduh penuh tiga file fitur,
+  /// pindai kata kunci spesifik per file.
+  Future<void> runTargeted() async {
+    log.addNote('=== PENEMUAN TERARAH JS DIMULAI ===');
+    for (final entry in _targets.entries) {
+      final path = entry.key;
+      final url = '$_base/$path';
+      final name = ApiDiscovery._fileName(url);
+      final res = await _getRaw(
+        Uri.parse(url),
+        timeout: const Duration(seconds: 20),
+        note: 'Penemuan terarah: file $path',
+      );
+      if (res == null) {
+        log.addNote(
+          'File $name: GAGAL diunduh (jaringan) — dilewati.',
+        );
+        continue;
+      }
+      if (res.statusCode != 200) {
+        log.addNote(
+          'File $name: HTTP ${res.statusCode} — tidak ditemukan/'
+          'gagal, dilewati.',
+        );
+        continue;
+      }
+      final js = res.body;
+      log.addNote(
+        'File $name terbaca penuh: ${res.bodyBytes.length} byte. '
+        'Memindai kata kunci: ${entry.value.join(', ')} '
+        '(case-insensitive, ejaan ganda dicari sekali).',
+      );
+      final seen = <String>{};
+      for (final kw in entry.value) {
+        if (!seen.add(kw.toLowerCase())) continue;
+        _scanTargeted(name, kw, js);
+      }
+    }
+    log.addNote('=== PENEMUAN TERARAH JS SELESAI ===');
+  }
+}

@@ -130,30 +130,7 @@ class _StatusScreenState extends State<StatusScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
-            Center(
-              child: Container(
-                width: 72,
-                height: 72,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: <Color>[_accent, _primary],
-                  ),
-                ),
-                child: const Center(
-                  child: Text(
-                    'i',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 40,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-            ),
+            const Center(child: WifiLogoMark(size: 72)),
             const SizedBox(height: 12),
             Text(
               'iPocket',
@@ -675,10 +652,10 @@ class _StatusScreenState extends State<StatusScreen> {
         'Perangkat kabel',
         state.lanStations.length.toString(),
       ],
-      <String>[
-        'Batas akses maksimum',
-        _or(wifi?.maxStationNum ?? s.maxAccessNum),
-      ],
+      // Baris "Batas akses maksimum" DIHAPUS di v1.3: nilainya
+      // MAX_Station_num = kapabilitas perangkat (32), menyesatkan —
+      // setting WebUI sebenarnya 3 dan field sumbernya belum
+      // ketemu (lihat addendum API-CONTRACT 14:20).
     ];
     return Card(
       child: Padding(
@@ -776,6 +753,72 @@ class _StatusScreenState extends State<StatusScreen> {
       }),
     );
   }
+}
+
+/// Marka logo untuk layar masuk: glyph WiFi gradasi pink Advan
+/// di atas kotak gelap membulat — meniru Logo B (ikon aplikasi).
+/// Digambar dengan CustomPaint TANPA aset biner, karena
+/// push-files menolak file biner dan ikon PNG hanya ditanam ke
+/// AppIcon oleh workflow. Logo lama huruf "i" ditinggalkan
+/// di v1.3.
+class WifiLogoMark extends StatelessWidget {
+  const WifiLogoMark({super.key, this.size = 72});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(size * 0.24),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[_headerDeep, _headerDark],
+        ),
+      ),
+      child: CustomPaint(painter: _WifiGlyphPainter()),
+    );
+  }
+}
+
+/// Painter glyph WiFi: tiga busur konsentris menghadap ke atas
+/// + titik di pusat busur, gradasi pink #F95FB4 → #EC008D,
+/// ujung busur bulat (round cap).
+class _WifiGlyphPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Pusat busur = posisi titik WiFi (agak di bawah tengah,
+    // karena busur menjulang ke atas dari titik ini).
+    final center = Offset(size.width / 2, size.height * 0.68);
+    final shader = const LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: <Color>[_accent, _primary],
+    ).createShader(Offset.zero & size);
+    final arcPaint = Paint()
+      ..shader = shader
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = size.width * 0.085
+      ..strokeCap = StrokeCap.round;
+    // Busur 225° → 315° (lewat 270° = lurus ke atas).
+    for (final r in <double>[0.16, 0.27, 0.38]) {
+      canvas.drawArc(
+        Rect.fromCircle(center: center, radius: size.width * r),
+        math.pi * 1.25,
+        math.pi / 2,
+        false,
+        arcPaint,
+      );
+    }
+    final dotPaint = Paint()..shader = shader;
+    canvas.drawCircle(center, size.width * 0.055, dotPaint);
+  }
+
+  @override
+  bool shouldRepaint(_WifiGlyphPainter oldDelegate) => false;
 }
 
 /// Ring pemakaian data: lingkaran latar tipis + busur proporsional.

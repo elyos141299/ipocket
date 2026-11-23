@@ -359,8 +359,11 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  /// Jalankan Probe Data Bulanan (v1.2): data_counter tanpa
-  /// multi_data + traffic_alert_info, tercatat mentah di log.
+  /// Jalankan Probe Baterai & Bulanan (v1.2 "Probe Data
+  /// Bulanan", diperluas v1.3): baterai (battery_vol_percent,
+  /// battery_vol, grup baterai — semua tanpa multi_data) +
+  /// data_counter tanpa multi_data + traffic_alert_info,
+  /// tercatat mentah di log.
   Future<void> runMonthlyProbe() async {
     busy = true;
     notifyListeners();
@@ -448,6 +451,26 @@ class AppState extends ChangeNotifier {
     notifyListeners();
     try {
       await ApiDiscoveryFinal(gateway: gateway, log: log).runFinal();
+    } finally {
+      busy = false;
+      notifyListeners();
+    }
+  }
+
+  /// Jalankan penemuan terarah JS (v1.3): unduh PENUH
+  /// js/wifi.js, js/net.js, js/sim_device.js dari perangkat dan
+  /// catat konteks ±1200 karakter di sekitar SETIAP kemunculan
+  /// kata kunci spesifik per file (goformId/setWifiBasic/
+  /// MacFilter di wifi.js, DHCP_SETTING/DMZ/REBOOT/SNTP di
+  /// net.js, save_time/MessageCenter/status_save di
+  /// sim_device.js, dll) — bahan memastikan nama field wire
+  /// gelombang pengaturan berikutnya. Semua hasil tercatat di
+  /// log diagnostik yang sama.
+  Future<void> runTargetedDiscovery() async {
+    busy = true;
+    notifyListeners();
+    try {
+      await ApiDiscoveryTargeted(gateway: gateway, log: log).runTargeted();
     } finally {
       busy = false;
       notifyListeners();

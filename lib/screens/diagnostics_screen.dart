@@ -49,6 +49,13 @@ class DiagnosticsScreen extends StatelessWidget {
                     label: const Text('Penemuan API Final'),
                   ),
                   FilledButton.icon(
+                    onPressed: state.busy
+                        ? null
+                        : () => state.runTargetedDiscovery(),
+                    icon: const Icon(Icons.find_in_page),
+                    label: const Text('Penemuan Terarah JS'),
+                  ),
+                  FilledButton.icon(
                     onPressed:
                         state.busy ? null : () => state.runFieldProbe(),
                     icon: const Icon(Icons.radar),
@@ -57,8 +64,8 @@ class DiagnosticsScreen extends StatelessWidget {
                   FilledButton.icon(
                     onPressed:
                         state.busy ? null : () => state.runMonthlyProbe(),
-                    icon: const Icon(Icons.calendar_month),
-                    label: const Text('Probe Data Bulanan'),
+                    icon: const Icon(Icons.battery_charging_full),
+                    label: const Text('Probe Baterai & Bulanan'),
                   ),
                   OutlinedButton.icon(
                     onPressed: () async {

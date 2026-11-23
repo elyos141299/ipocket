@@ -134,9 +134,12 @@ class _SmsScreenState extends State<SmsScreen> {
     // 1 Minggu, Maksimum) dipetakan ke save_time "0".."3" —
     // pemetaan nilai persisnya tidak terbaca dari dump com.js,
     // hasil POST tercatat mentah di log untuk verifikasi.
+    // Laporan pengiriman: default awal OFF — inspeksi live
+    // 23 Nov 2026 membuktikan keadaan perangkat sebenarnya
+    // "Nonaktif" (v1.2 keliru default ON).
     final centerCtl = TextEditingController(text: '+62816124');
     var validity = '3'; // Maksimum
-    var deliveryReport = true;
+    var deliveryReport = false;
     final saved = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
