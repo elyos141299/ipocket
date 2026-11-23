@@ -4,11 +4,11 @@ Aplikasi Flutter "iPocket": panel status untuk MiFi Advan iPocket MF01
 (API reqproc perangkat) — pantau sinyal, baterai, perangkat terhubung,
 dan SMS tanpa membuka browser. Spesifikasi API: `../API-CONTRACT.md`.
 
-Versi: **v1.3** — batch presisi dari verifikasi v1.2: logo
-login glyph WiFi (CustomPaint, meniru Logo B), baris "Batas
-akses maksimum" dihapus, default laporan pengiriman SMS OFF,
-tombol baru Penemuan Terarah JS, dan Probe Data Bulanan
-diperluas menjadi Probe Baterai & Bulanan.
+Versi: **v1.4** — tema GELAP + PUTIH di seluruh aplikasi
+(permintaan user: tema terang kurang disukai), wire SMS
+ditambah `notCallback:"true"` persis bentuk WebUI, dan
+Penemuan Terarah JS diperluas ke `js/lib.js` (konteks ±2000)
+memburu definisi fungsi pembentuk wire SMS.
 Riwayat singkat: v0.2 membuktikan firmware
 perangkat menjawab 404 untuk /goform/*; penemuan bertingkat
 (v0.2–v0.4, aplikasi membaca JS WebUI dari perangkat: index →
@@ -76,6 +76,8 @@ kini gradasi gelap #16121A → #2A1530 dengan teks putih;
 lingkaran data ber-progress pink dengan track abu muda; ikon
 tile berlatar pink muda #FCE4F1 dengan ikon pink gelap #C2187A;
 tab aktif dan tombol utama mengikuti seed ColorScheme #EC008D.
+**Tema terang ini DIBATALKAN di v1.4** — user kurang suka
+tampilan terang; lihat bagian **v1.4** (tema gelap + putih).
 
 **Logo final** (keputusan user 23 Nov 2026): huruf "i"
 ditinggalkan — logo resmi = simbol WiFi varian B "gelap
@@ -193,6 +195,43 @@ paragraf logo di atas adalah catatan saat v1.2 ditulis):
    traffic_alert_info) DIPERTAHANKAN sebagai pembukti ulang
    bila rencana data diaktifkan user.
 
+**v1.4** (permintaan user 23 Nov 2026 ±14:39 + hasil tes
+kirim SMS v1.3; lihat addendum API-CONTRACT 14:37):
+
+1. **Tema GELAP + PUTIH di seluruh aplikasi** — user kurang
+   suka tema terang v1.2/v1.3. Latar scaffold sangat gelap
+   **#121016**, kartu/panel **#1E1A24–#262030**, teks utama
+   **putih**, teks sekunder putih 60–70%, garis tepi & track
+   ring putih ±10%. Pink Advan #EC008D/#F95FB4 HANYA aksen
+   kecil: tombol utama (seed ColorScheme gelap), indikator
+   tab aktif, toggle ON, ring progres, ikon aksen, fokus
+   field. Berlaku konsisten di semua permukaan: `main.dart`
+   memakai ColorScheme gelap dari seed yang sama +
+   scaffoldBackgroundColor/cardColor/divider/snackbar gelap;
+   layar login, dashboard (header tetap gradasi gelap
+   #16121A → #2A1530; tile kini wadah ikon #262030 berikon
+   #F95FB4; teks redup diganti putih 38–70%), dialog
+   (Pengaturan SMS, konfirmasi hapus, tulis SMS — mengikuti
+   tema gelap Material), field teks (isi gelap, teks putih,
+   fokus pink), dan tab bar (latar #1E1A24, indikator pink,
+   ikon/label putih). Logo login `WifiLogoMark`
+   dipertahankan apa adanya (sudah gelap premium).
+2. **Wire SMS + `notCallback:"true"`** — kelima POST SMS
+   (`SEND_SMS`, `SAVE_SMS`, `DELETE_SMS`, `SET_MSG_READ`,
+   `ALL_DELETE_SMS`) kini menyertakan field `notCallback`
+   bernilai string `"true"`, persis bentuk objek di kode
+   asli hasil Penemuan Terarah. Asumsi lain TIDAK diubah
+   dan tetap dicatat di log: format `sms_time` (umum ZTE),
+   `which_cgi`="inbox", pemetaan `save_time` validitas.
+3. **Penemuan Terarah JS + `js/lib.js`** — target keempat:
+   kata kunci `getCurrentTimeString`, `encodeMessage`,
+   `escapeMessage` dengan konteks LEBIH LEBAR **±2000
+   karakter** per kemunculan (file lain tetap ±1200).
+   Definisi tiga fungsi ini tidak ada di wifi/net/
+   sim_device.js — hampir pasti di lib.js — dan merupakan
+   buruan terakhir untuk perbaikan kirim SMS yang pasti
+   (tes v1.3: SEND_SMS → result "failure").
+
 Asumsi tampilan lingkaran data: perangkat user TIDAK mengatur
 batas data (Manajemen Data "Tidak diatur"), jadi ring digambar
 proporsional terhadap **patokan tampilan 10 GB** — angka di tengah
@@ -230,7 +269,8 @@ app/
     │                       # REBOOT_DEVICE, CHANGE_PASSWORD),
     │                       # Probe Data Bulanan; v1.3: probe
     │                       # diperluas baterai tanpa multi_data
-    │                       # (Probe Baterai & Bulanan)
+    │                       # (Probe Baterai & Bulanan); v1.4:
+    │                       # notCallback:"true" di semua POST SMS
     ├── discovery.dart      # v0.2: penemuan API — unduh HTML + file JS
     │                       # WebUI dari perangkat, pindai kandidat
     │                       # endpoint & konteks panggilan AJAX/fetch
@@ -246,6 +286,9 @@ app/
     │                       # wifi/net/sim_device.js, konteks
     │                       # ±1200 karakter per kemunculan kata
     │                       # kunci spesifik per file, tanpa potong
+    │                       # v1.4: + js/lib.js konteks ±2000 —
+    │                       # buruan getCurrentTimeString/
+    │                       # encodeMessage/escapeMessage
     ├── models.dart         # DeviceStatus reqproc (parse toleran:
     │                       # baterai persen/level, sinyal per jenis jaringan,
     │                       # data_counter Map/string, station_list
@@ -256,7 +299,8 @@ app/
     └── screens/
         ├── app_shell.dart        # AppBar + navigasi bawah 4 tab
         ├── status_screen.dart    # dashboard: sambutan+login (logo
-        │                       # WiFi CustomPaint sejak v1.3), header,
+        │                       # WiFi CustomPaint sejak v1.3; tema
+        │                       # gelap + putih sejak v1.4), header,
         │                       # tombol sambung/putus, lingkaran data
         │                       # bulanan/sesi, 4 tile, detail (SSID
         │                       # asli), daftar perangkat terhubung,
@@ -285,11 +329,14 @@ diperluas v1.3) mencoba `battery_vol_percent`, `battery_vol`,
 dan grup baterai — semua tanpa multi_data — untuk memburu
 persen baterai asli, plus dua bentuk terakhir untuk data
 bulanan: `data_counter` tanpa multi_data dan
-`traffic_alert_info`. Tombol **Penemuan Terarah JS** (v1.3)
-mengunduh penuh `js/wifi.js`, `js/net.js`, `js/sim_device.js`
-dan mencatat konteks ±1200 karakter di sekitar setiap
-kemunculan kata kunci spesifik per file (nama field wire
-gelombang pengaturan) tanpa memotong isi konteks. Tombol kedua,
+`traffic_alert_info`. Tombol **Penemuan Terarah JS** (v1.3,
+diperluas v1.4) mengunduh penuh `js/wifi.js`, `js/net.js`,
+`js/sim_device.js`, `js/lib.js` dan mencatat konteks ±1200
+karakter di sekitar setiap kemunculan kata kunci spesifik
+per file (nama field wire gelombang pengaturan) tanpa
+memotong isi konteks; khusus lib.js konteksnya ±2000
+karakter, memburu definisi `getCurrentTimeString`,
+`encodeMessage`, dan `escapeMessage`. Tombol kedua,
 **Jalankan Penemuan API** (v0.2), membaca HTML + file JS WebUI dari
 perangkat dan mencatat kandidat endpoint asli beserta konteks
 pemanggilannya ke log yang sama. Tombol ketiga, **Penemuan API

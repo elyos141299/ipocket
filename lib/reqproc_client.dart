@@ -388,9 +388,11 @@ class ReqprocClient {
         '${two(t.minute)};${two(t.second)};+07';
   }
 
-  /// Kirim SMS: POST SEND_SMS {Number, sms_time,
+  /// Kirim SMS: POST SEND_SMS {notCallback, Number, sms_time,
   /// MessageBody: escapeMessage(encodeMessage(pesan))} — pola
-  /// persis com.js; encodeMessage = hex UTF-16BE (lihat
+  /// persis kode asli hasil Penemuan Terarah (v1.4 menambahkan
+  /// notCallback:"true" persis bentuk wire WebUI);
+  /// encodeMessage = hex UTF-16BE (lihat
   /// [encodeSmsContent]) dan escape() JS tidak mengubah hex.
   /// Mengembalikan Map respons mentah (result "success" = terkirim).
   Future<Map<String, dynamic>> sendSms(String number, String message) {
@@ -403,6 +405,7 @@ class ReqprocClient {
     return procPost(
       <String, String>{
         'goformId': 'SEND_SMS',
+        'notCallback': 'true',
         'Number': number,
         'sms_time': smsTimeString(DateTime.now()),
         'MessageBody': encodeSmsContent(message),
@@ -411,13 +414,16 @@ class ReqprocClient {
     );
   }
 
-  /// Simpan draf SMS: POST SAVE_SMS {SMSMessage: hex UTF-16BE,
-  /// SMSNumber: "nomor;", Index} — pola com.js (numbers digabung
-  /// ";" + trailing ";"). Index kosong untuk draf baru.
+  /// Simpan draf SMS: POST SAVE_SMS {notCallback, SMSMessage:
+  /// hex UTF-16BE, SMSNumber: "nomor;", Index} — pola kode asli
+  /// hasil Penemuan Terarah (v1.4 menambahkan notCallback:"true"
+  /// persis bentuk wire WebUI); numbers digabung ";" + trailing
+  /// ";". Index kosong untuk draf baru.
   Future<Map<String, dynamic>> saveSmsDraft(String number, String message) {
     return procPost(
       <String, String>{
         'goformId': 'SAVE_SMS',
+        'notCallback': 'true',
         'SMSMessage': encodeSmsContent(message),
         'SMSNumber': '$number;',
         'Index': '',
@@ -426,24 +432,29 @@ class ReqprocClient {
     );
   }
 
-  /// Hapus SMS: POST DELETE_SMS {msg_id: "id;id;"} — pola com.js
-  /// (ids digabung ";" plus ";" penutup).
+  /// Hapus SMS: POST DELETE_SMS {notCallback, msg_id:
+  /// "id;id;"} — pola kode asli hasil Penemuan Terarah (v1.4
+  /// menambahkan notCallback:"true"); ids digabung ";" plus
+  /// ";" penutup.
   Future<Map<String, dynamic>> deleteSms(List<String> ids) {
     return procPost(
       <String, String>{
         'goformId': 'DELETE_SMS',
+        'notCallback': 'true',
         'msg_id': '${ids.join(';')};',
       },
       note: 'Hapus SMS (DELETE_SMS)',
     );
   }
 
-  /// Tandai SMS sudah dibaca: POST SET_MSG_READ {msg_id, tag: 0}
-  /// — pola com.js persis.
+  /// Tandai SMS sudah dibaca: POST SET_MSG_READ {notCallback,
+  /// msg_id, tag: 0} — pola kode asli hasil Penemuan Terarah
+  /// (v1.4 menambahkan notCallback:"true" persis wire WebUI).
   Future<Map<String, dynamic>> setSmsRead(List<String> ids) {
     return procPost(
       <String, String>{
         'goformId': 'SET_MSG_READ',
+        'notCallback': 'true',
         'msg_id': '${ids.join(';')};',
         'tag': '0',
       },
@@ -451,7 +462,9 @@ class ReqprocClient {
     );
   }
 
-  /// Hapus SEMUA SMS perangkat: POST ALL_DELETE_SMS {which_cgi}.
+  /// Hapus SEMUA SMS perangkat: POST ALL_DELETE_SMS
+  /// {notCallback, which_cgi} (notCallback ditambahkan v1.4
+  /// persis bentuk wire WebUI hasil Penemuan Terarah).
   /// com.js mengisi which_cgi dari `location` halaman WebUI; nilai
   /// persisnya tidak terbaca dari dump — dipakai "inbox" (kotak
   /// masuk perangkat yang ditampilkan aplikasi ini) dan hasilnya
@@ -465,6 +478,7 @@ class ReqprocClient {
     return procPost(
       <String, String>{
         'goformId': 'ALL_DELETE_SMS',
+        'notCallback': 'true',
         'which_cgi': 'inbox',
       },
       note: 'Hapus semua SMS (ALL_DELETE_SMS)',

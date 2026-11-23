@@ -332,7 +332,7 @@ class _SmsScreenState extends State<SmsScreen> {
               children: <Widget>[
                 Icon(
                   Icons.message,
-                  color: unread ? _primary : Colors.black38,
+                  color: unread ? _primary : Colors.white38,
                 ),
                 if (unread)
                   Positioned(
@@ -372,7 +372,7 @@ class _SmsScreenState extends State<SmsScreen> {
                     padding: EdgeInsets.only(top: 4),
                     child: Text(
                       'Ketuk untuk tandai sudah dibaca',
-                      style: TextStyle(fontSize: 11, color: Colors.black45),
+                      style: TextStyle(fontSize: 11, color: Colors.white38),
                     ),
                   ),
               ],

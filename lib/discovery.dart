@@ -754,7 +754,7 @@ class ApiDiscoveryFinal extends ApiDiscoveryAdvanced {
   }
 }
 
-/// Penemuan Terarah JS (v1.3).
+/// Penemuan Terarah JS (v1.3; diperluas v1.4).
 ///
 /// Penemuan Final (v0.4) hanya mencatat SAMPEL tiap file JS:
 /// konteks kata kunci umum ±120 karakter dan isi terpotong
@@ -762,17 +762,25 @@ class ApiDiscoveryFinal extends ApiDiscoveryAdvanced {
 /// nama field wire gelombang pengaturan berikutnya (simpan WiFi,
 /// filter MAC, DHCP, DMZ, reboot, SNTP, pengaturan SMS, dll).
 ///
-/// Mode terarah ini mengunduh PENUH tiga file fitur —
-/// js/wifi.js, js/net.js, js/sim_device.js — dan untuk daftar
-/// kata kunci SPESIFIK per file mencatat konteks ±1200 karakter
-/// di sekitar SETIAP kemunculan ke log, dipecah entri ≤3500
-/// karakter TANPA membuang isi konteks (jendela yang tumpang
-/// tindih digabung, jadi tidak ada teks dobel maupun terpotong).
-/// Tiap entri berpenanda file + kata kunci + nomor segmen/
-/// potongan. Pencarian case-insensitive; ejaan kata kunci yang
-/// hanya beda huruf besar/kecil (DMZ/dmz, SNTP/sntp,
-/// traffic/Traffic) dicari sekali. File yang gagal diunduh
-/// atau 404 dicatat apa adanya. Semua READ-ONLY.
+/// Mode terarah ini mengunduh PENUH empat file —
+/// js/wifi.js, js/net.js, js/sim_device.js, js/lib.js — dan
+/// untuk daftar kata kunci SPESIFIK per file mencatat konteks
+/// ±1200 karakter di sekitar SETIAP kemunculan ke log, dipecah
+/// entri ≤3500 karakter TANPA membuang isi konteks (jendela
+/// yang tumpang tindih digabung, jadi tidak ada teks dobel
+/// maupun terpotong). Tiap entri berpenanda file + kata kunci
+/// + nomor segmen/potongan. Pencarian case-insensitive; ejaan
+/// kata kunci yang hanya beda huruf besar/kecil (DMZ/dmz,
+/// SNTP/sntp, traffic/Traffic) dicari sekali. File yang gagal
+/// diunduh atau 404 dicatat apa adanya. Semua READ-ONLY.
+///
+/// v1.4 menambahkan js/lib.js dengan konteks LEBIH LEBAR
+/// (±2000 karakter): buruan terakhir definisi
+/// getCurrentTimeString/encodeMessage/escapeMessage — tiga
+/// fungsi pembentuk wire SEND_SMS WebUI yang TIDAK ada di
+/// wifi/net/sim_device.js (hanya call-site) dan menjadi
+/// tersangka utama kegagalan kirim SMS di perangkat asli
+/// (addendum API-CONTRACT 14:37).
 class ApiDiscoveryTargeted extends ApiDiscovery {
   ApiDiscoveryTargeted({required super.gateway, required super.log});
 
@@ -813,10 +821,20 @@ class ApiDiscoveryTargeted extends ApiDiscovery {
       'MessageCenter',
       'status_save',
     ],
+    // v1.4: buruan definisi fungsi pembentuk wire SMS.
+    'js/lib.js': <String>[
+      'getCurrentTimeString',
+      'encodeMessage',
+      'escapeMessage',
+    ],
   };
 
   /// Setengah lebar jendela konteks di sekitar kemunculan.
   static const int _contextRadius = 1200;
+
+  /// Radius khusus js/lib.js (v1.4): definisi fungsi yang
+  /// diburu panjang, jadi jendela konteksnya ±2000 karakter.
+  static const int _contextRadiusWide = 2000;
 
   /// Batas ukuran satu entri log untuk mode ini.
   static const int _entryLimit = 3500;
@@ -848,10 +866,15 @@ class ApiDiscoveryTargeted extends ApiDiscovery {
   }
 
   /// Cari semua kemunculan [keyword] (case-insensitive) di [js],
-  /// gabung jendela konteks ±[_contextRadius] yang tumpang
-  /// tindih menjadi segmen, lalu catat tiap segmen ke log
-  /// dengan penanda file + kata kunci + nomor segmen.
-  void _scanTargeted(String file, String keyword, String js) {
+  /// gabung jendela konteks ±[radius] yang tumpang tindih
+  /// menjadi segmen, lalu catat tiap segmen ke log dengan
+  /// penanda file + kata kunci + nomor segmen.
+  void _scanTargeted(
+    String file,
+    String keyword,
+    String js, {
+    int radius = _contextRadius,
+  }) {
     final re = RegExp(RegExp.escape(keyword), caseSensitive: false);
     final matches = re.allMatches(js).toList();
     if (matches.isEmpty) {
@@ -862,11 +885,9 @@ class ApiDiscoveryTargeted extends ApiDiscovery {
     // kemunculan di dalam segmen]. Digabung bila tumpang tindih.
     final windows = <List<int>>[];
     for (final m in matches) {
-      final start =
-          m.start - _contextRadius < 0 ? 0 : m.start - _contextRadius;
-      final end = m.end + _contextRadius > js.length
-          ? js.length
-          : m.end + _contextRadius;
+      final start = m.start - radius < 0 ? 0 : m.start - radius;
+      final end =
+          m.end + radius > js.length ? js.length : m.end + radius;
       if (windows.isNotEmpty && start <= windows.last[1]) {
         if (end > windows.last[1]) windows.last[1] = end;
         windows.last[2]++;
@@ -889,8 +910,9 @@ class ApiDiscoveryTargeted extends ApiDiscovery {
     }
   }
 
-  /// Jalankan penemuan terarah: unduh penuh tiga file fitur,
-  /// pindai kata kunci spesifik per file.
+  /// Jalankan penemuan terarah: unduh penuh empat file,
+  /// pindai kata kunci spesifik per file (js/lib.js memakai
+  /// radius konteks lebar ±2000, sisanya ±1200).
   Future<void> runTargeted() async {
     log.addNote('=== PENEMUAN TERARAH JS DIMULAI ===');
     for (final entry in _targets.entries) {
@@ -916,15 +938,18 @@ class ApiDiscoveryTargeted extends ApiDiscovery {
         continue;
       }
       final js = res.body;
+      final radius =
+          path == 'js/lib.js' ? _contextRadiusWide : _contextRadius;
       log.addNote(
         'File $name terbaca penuh: ${res.bodyBytes.length} byte. '
         'Memindai kata kunci: ${entry.value.join(', ')} '
-        '(case-insensitive, ejaan ganda dicari sekali).',
+        '(case-insensitive, ejaan ganda dicari sekali; konteks '
+        '±$radius karakter per kemunculan).',
       );
       final seen = <String>{};
       for (final kw in entry.value) {
         if (!seen.add(kw.toLowerCase())) continue;
-        _scanTargeted(name, kw, js);
+        _scanTargeted(name, kw, js, radius: radius);
       }
     }
     log.addNote('=== PENEMUAN TERARAH JS SELESAI ===');

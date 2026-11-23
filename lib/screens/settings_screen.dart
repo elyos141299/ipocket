@@ -143,7 +143,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             if (!state.loggedIn)
               const Text(
                 'Masuk dulu di tab Status untuk memakai aksi perangkat.',
-                style: TextStyle(color: Colors.black54),
+                style: TextStyle(color: Colors.white60),
               )
             else ...<Widget>[
               OutlinedButton.icon(
@@ -164,7 +164,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 'Kata sandi ini adalah sandi admin MiFi (yang dipakai '
                 'masuk WebUI & aplikasi ini). Setelah berhasil, kamu '
                 'akan diarahkan masuk lagi dengan sandi baru.',
-                style: TextStyle(color: Colors.black54),
+                style: TextStyle(color: Colors.white60),
               ),
               const SizedBox(height: 12),
               TextField(

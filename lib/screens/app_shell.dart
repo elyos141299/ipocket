@@ -32,23 +32,33 @@ class _AppShellState extends State<AppShell> {
         ],
       ),
       bottomNavigationBar: NavigationBar(
+        // Tab bar tema gelap v1.4: latar panel gelap, indikator
+        // aktif pink Advan, ikon & label putih (redup saat tidak
+        // aktif, putih penuh saat aktif).
+        backgroundColor: const Color(0xFF1E1A24),
+        indicatorColor: const Color(0xFFEC008D),
         selectedIndex: _index,
         onDestinationSelected: (i) => setState(() => _index = i),
         destinations: const <NavigationDestination>[
           NavigationDestination(
-            icon: Icon(Icons.signal_cellular_alt),
+            icon: Icon(Icons.signal_cellular_alt, color: Colors.white60),
+            selectedIcon:
+                Icon(Icons.signal_cellular_alt, color: Colors.white),
             label: 'Status',
           ),
           NavigationDestination(
-            icon: Icon(Icons.sms),
+            icon: Icon(Icons.sms, color: Colors.white60),
+            selectedIcon: Icon(Icons.sms, color: Colors.white),
             label: 'SMS',
           ),
           NavigationDestination(
-            icon: Icon(Icons.terminal),
+            icon: Icon(Icons.terminal, color: Colors.white60),
+            selectedIcon: Icon(Icons.terminal, color: Colors.white),
             label: 'Diagnostik',
           ),
           NavigationDestination(
-            icon: Icon(Icons.settings),
+            icon: Icon(Icons.settings, color: Colors.white60),
+            selectedIcon: Icon(Icons.settings, color: Colors.white),
             label: 'Pengaturan',
           ),
         ],

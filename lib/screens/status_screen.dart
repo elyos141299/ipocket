@@ -6,15 +6,21 @@ import 'package:flutter/material.dart';
 import '../app_state.dart';
 import '../models.dart';
 
-// Palet dashboard: branding Advan — pink magenta #EC008D,
-// aksen pink terang, tinta nyaris hitam hangat.
+// Palet dashboard v1.4: TEMA GELAP + PUTIH (permintaan user
+// 23 Nov 2026 — tema terang v1.2/v1.3 kurang disukai). Panel
+// sangat gelap, teks utama PUTIH, teks sekunder putih 60–70%,
+// track/garis putih ±10%. Pink Advan #EC008D/#F95FB4 HANYA
+// aksen kecil: ring progres, ikon aksen, state aktif.
+// (_ink kini PUTIH — nama lama dipertahankan untuk teks utama.)
 const Color _primary = Color(0xFFEC008D);
 const Color _accent = Color(0xFFF95FB4);
-const Color _ink = Color(0xFF16121A);
+const Color _ink = Colors.white;
+const Color _inkSoft = Color(0xB3FFFFFF);
+const Color _inkFaint = Color(0x61FFFFFF);
 const Color _headerDark = Color(0xFF16121A);
 const Color _headerDeep = Color(0xFF2A1530);
-const Color _tileBg = Color(0xFFFCE4F1);
-const Color _tileIcon = Color(0xFFC2187A);
+const Color _tileBg = Color(0xFF262030);
+const Color _tileIcon = Color(0xFFF95FB4);
 
 String _or(String? v) => (v == null || v.isEmpty) ? '—' : v;
 
@@ -210,7 +216,7 @@ class _StatusScreenState extends State<StatusScreen> {
           const Expanded(
             child: Text(
               'Diperbarui otomatis tiap 15 detik.',
-              style: TextStyle(color: Colors.black54),
+              style: TextStyle(color: _inkSoft),
             ),
           ),
           OutlinedButton.icon(
@@ -333,7 +339,7 @@ class _StatusScreenState extends State<StatusScreen> {
           children: <Widget>[
             Icon(
               connected ? Icons.link : Icons.link_off,
-              color: connected ? _tileIcon : Colors.black45,
+              color: connected ? _tileIcon : Colors.white38,
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -423,7 +429,7 @@ class _StatusScreenState extends State<StatusScreen> {
                     const SizedBox(height: 2),
                     Text(
                       hasMonthly ? 'Pemakaian Bulan Ini' : 'Total Sesi Ini',
-                      style: const TextStyle(color: Colors.black54),
+                      style: const TextStyle(color: _inkSoft),
                     ),
                     const SizedBox(height: 2),
                     Text(
@@ -431,7 +437,7 @@ class _StatusScreenState extends State<StatusScreen> {
                           ? 'Ring: patokan 10 GB'
                           : 'data bulanan belum terbaca dari perangkat',
                       style:
-                          const TextStyle(color: Colors.black38, fontSize: 11),
+                          const TextStyle(color: _inkFaint, fontSize: 11),
                     ),
                   ],
                 ),
@@ -477,7 +483,7 @@ class _StatusScreenState extends State<StatusScreen> {
             ),
           ],
         ),
-        Text(label, style: const TextStyle(color: Colors.black54)),
+        Text(label, style: const TextStyle(color: _inkSoft)),
       ],
     );
   }
@@ -601,7 +607,7 @@ class _StatusScreenState extends State<StatusScreen> {
             const SizedBox(height: 2),
             Text(
               label,
-              style: const TextStyle(color: Colors.black54, fontSize: 12),
+              style: const TextStyle(color: _inkSoft, fontSize: 12),
             ),
           ],
         ),
@@ -706,7 +712,7 @@ class _StatusScreenState extends State<StatusScreen> {
                 padding: EdgeInsets.fromLTRB(16, 4, 16, 12),
                 child: Text(
                   'Tidak ada perangkat terbaca saat ini.',
-                  style: TextStyle(color: Colors.black54),
+                  style: TextStyle(color: _inkSoft),
                 ),
               )
             else
@@ -836,7 +842,7 @@ class _RingPainter extends CustomPainter {
     final rect = Rect.fromCircle(center: center, radius: radius);
 
     final bg = Paint()
-      ..color = const Color(0xFFEAE4E8)
+      ..color = const Color(0x1AFFFFFF)
       ..style = PaintingStyle.stroke
       ..strokeWidth = stroke;
     canvas.drawCircle(center, radius, bg);
