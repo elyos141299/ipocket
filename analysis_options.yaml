@@ -1,0 +1,13 @@
+# Opsi analisis untuk iPocket.
+# Sengaja tanpa include paket lint eksternal — proyek ini hanya memakai
+# paket flutter, http, dan crypto (lihat pubspec.yaml).
+
+analyzer:
+  errors:
+    unused_import: warning
+
+linter:
+  rules:
+    - avoid_print
+    - prefer_const_constructors
+    - prefer_single_quotes
