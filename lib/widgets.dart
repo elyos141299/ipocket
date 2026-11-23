@@ -22,13 +22,30 @@ class SectionLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: EdgeInsets.only(top: top, bottom: AppSpace.sm),
-      child: Text(text.toUpperCase(), style: AppText.sectionLabel),
+      // v4.0: tanda aksen gradasi kecil di kiri label — detail
+      // identitas yang konsisten di semua seksi.
+      child: Row(
+        children: <Widget>[
+          Container(
+            width: 3,
+            height: 12,
+            decoration: const BoxDecoration(
+              gradient: AppGradients.accentLine,
+              borderRadius: AppRadius.pillBorder,
+            ),
+          ),
+          const SizedBox(width: AppSpace.sm),
+          Text(text.toUpperCase(), style: AppText.sectionLabel),
+        ],
+      ),
     );
   }
 }
 
 /// Kotak ikon aksen: panel navy membulat bertepi + ikon cyan —
 /// dipakai baris hub dan tile di seluruh aplikasi.
+/// v4.0: permukaan gradasi glassy (panel → cardHi) agar tidak
+/// datar.
 class IconBox extends StatelessWidget {
   const IconBox(this.icon, {super.key, this.color = AppColors.accent});
 
@@ -40,10 +57,16 @@ class IconBox extends StatelessWidget {
     return Container(
       width: 38,
       height: 38,
-      decoration: BoxDecoration(
-        color: AppColors.panel,
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[AppColors.cardHi, AppColors.panel],
+        ),
         borderRadius: AppRadius.tileBorder,
-        border: Border.all(color: AppColors.border),
+        border: Border.fromBorderSide(
+          BorderSide(color: AppColors.border),
+        ),
       ),
       child: Icon(icon, color: color, size: 21),
     );
@@ -271,8 +294,19 @@ class EmptyState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            Icon(icon, size: 44, color: AppColors.textFaint),
-            const SizedBox(height: AppSpace.md),
+            // v4.0: ikon di dalam lingkaran glassy, bukan
+            // ikon polos melayang.
+            Container(
+              width: 84,
+              height: 84,
+              decoration: BoxDecoration(
+                gradient: AppGradients.surface,
+                shape: BoxShape.circle,
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Icon(icon, size: 38, color: AppColors.textFaint),
+            ),
+            const SizedBox(height: AppSpace.lg),
             Text(
               message,
               textAlign: TextAlign.center,
@@ -355,7 +389,7 @@ class SaveButton extends StatelessWidget {
           : const Icon(Icons.check),
       label: Text(label),
       style: FilledButton.styleFrom(
-        minimumSize: const Size.fromHeight(48),
+        minimumSize: const Size.fromHeight(52),
       ),
     );
   }
@@ -583,9 +617,12 @@ class SettingsDropdown<T> extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         Container(
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             color: AppColors.panel,
             borderRadius: AppRadius.tileBorder,
+            // v4.0: tepi token border — selaras panel
+            // SettingsTextField (sebelumnya tanpa tepi).
+            border: Border.all(color: AppColors.border),
           ),
           padding: const EdgeInsets.fromLTRB(14, 7, 10, 7),
           child: Column(

@@ -1,6 +1,5 @@
 import 'package:flutter/foundation.dart';
 
-import 'discovery.dart';
 import 'friendly_error.dart';
 import 'models.dart';
 import 'reqproc_client.dart';
@@ -17,7 +16,8 @@ class AppState extends ChangeNotifier {
 
   static final AppState instance = AppState._();
 
-  /// Gateway MiFi — default sesuai kontrak, bisa diganti di Pengaturan.
+  /// Gateway MiFi — v4.0: tetap default kontrak 192.168.0.1
+  /// (halaman ganti gateway dihapus bersama tab Tools).
   String gateway = '192.168.0.1';
 
   /// Password admin — default "admin", hanya di memori.
@@ -28,7 +28,7 @@ class AppState extends ChangeNotifier {
 
   /// Lapisan API pengaturan Gelombang B/C/D di atas klien aktif
   /// (dibuat segar tiap akses agar selalu mengikuti [client]
-  /// terbaru setelah ganti gateway).
+  /// terbaru).
   SettingsApi get api => SettingsApi(client);
 
   /// True setelah login reqproc berhasil (result "0"/"4").
@@ -69,31 +69,6 @@ class AppState extends ChangeNotifier {
   int? _prevTxBytes;
   int? _prevRxBytes;
   DateTime? _prevSampleAt;
-
-  void setGateway(String value) {
-    final g = value.trim();
-    gateway = g.isEmpty ? '192.168.0.1' : g;
-    client = ReqprocClient(gateway: gateway, log: log);
-    loggedIn = false;
-    loginMessage = null;
-    statusOffline = false;
-    statusError = null;
-    status = null;
-    smsList = null;
-    smsCapacity = null;
-    wifiStations = <ConnectedDevice>[];
-    lanStations = <ConnectedDevice>[];
-    wifiInfo = null;
-    _prevTxBytes = null;
-    _prevRxBytes = null;
-    _prevSampleAt = null;
-    notifyListeners();
-  }
-
-  void clearLog() {
-    log.clear();
-    notifyListeners();
-  }
 
   /// Login reqproc dengan sandi saat ini. Bila berhasil, langsung
   /// muat status + SMS. Pesan kegagalan disiapkan per kasus agar
@@ -345,231 +320,4 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  /// Mulai ulang perangkat (REBOOT_DEVICE). Mengembalikan pesan
-  /// hasil; sesi kemungkinan putus sesudahnya (perangkat boot
-  /// ulang) — pengguna masuk lagi setelah perangkat siap.
-  Future<String> rebootDevice() async {
-    busy = true;
-    notifyListeners();
-    try {
-      final res = await client.rebootDevice();
-      final r = res['result']?.toString();
-      log.addNote('REBOOT_DEVICE terkirim (result=${r ?? 'kosong'})');
-      return 'Perintah mulai ulang terkirim. '
-          'MiFi akan boot ulang — tunggu ±1 menit lalu masuk lagi '
-          'bila sesi terputus.';
-    } catch (e) {
-      return 'Tidak ada respons utuh dari MiFi — wajar bila '
-          'perangkat langsung mulai ulang. Tunggu ±1 menit lalu '
-          'masuk lagi.';
-    } finally {
-      busy = false;
-      notifyListeners();
-    }
-  }
-
-  /// Matikan perangkat (TURN_OFF_DEVICE {} — FULL-SPEC D18).
-  /// Setelah perintah ini perangkat MATI total: aplikasi pasti
-  /// kehilangan koneksi sampai user menyalakan MiFi manual.
-  Future<String> turnOffDevice() async {
-    busy = true;
-    notifyListeners();
-    try {
-      await api.turnOffDevice();
-      loggedIn = false;
-      return 'Perintah matikan terkirim. '
-          'MiFi akan mati — nyalakan lagi manual dengan tombol '
-          'power bila ingin memakainya.';
-    } catch (e) {
-      loggedIn = false;
-      return 'Tidak ada respons utuh dari MiFi — wajar bila '
-          'perangkat langsung mati. Periksa lampu MiFi-mu.';
-    } finally {
-      busy = false;
-      notifyListeners();
-    }
-  }
-
-  /// Setel ulang pabrik (RESTORE_FACTORY_SETTINGS {} — FULL-SPEC
-  /// D18). SEMUA pengaturan perangkat kembali ke awal pabrik
-  /// (SSID, sandi WiFi, sandi admin) dan perangkat mulai ulang.
-  Future<String> restoreFactory() async {
-    busy = true;
-    notifyListeners();
-    try {
-      await api.restoreFactory();
-      loggedIn = false;
-      client.clearSession();
-      return 'Perintah setel ulang pabrik terkirim. '
-          'MiFi kembali ke pengaturan '
-          'awal dan mulai ulang — sambungkan ulang ke WiFi '
-          'bawaan perangkat, lalu masuk dengan sandi awal.';
-    } catch (e) {
-      return 'Tidak ada respons utuh dari MiFi — wajar bila '
-          'perangkat langsung mulai ulang untuk reset. Tunggu '
-          '±1 menit lalu sambungkan ulang ke WiFi bawaan.';
-    } finally {
-      busy = false;
-      notifyListeners();
-    }
-  }
-
-  /// Ganti kata sandi login (CHANGE_PASSWORD). Bila sukses: sesi
-  /// ditutup dan pengguna diarahkan ke layar login dengan sandi
-  /// baru (sandi baru disimpan di memori sebagai sandi aktif).
-  Future<String> changePassword(String oldPw, String newPw) async {
-    busy = true;
-    notifyListeners();
-    try {
-      final ok = await client.changePassword(oldPw, newPw);
-      if (ok) {
-        adminPassword = newPw;
-        loggedIn = false;
-        client.clearSession();
-        loginMessage = 'Kata sandi berhasil diganti. Masuk lagi '
-            'dengan kata sandi barumu.';
-        return 'Kata sandi diganti. Silakan masuk lagi.';
-      }
-      return 'Perangkat menolak ganti sandi — periksa kata sandi '
-          'lamamu, lalu coba lagi.';
-    } catch (e) {
-      return friendlyError(e);
-    } finally {
-      busy = false;
-      notifyListeners();
-    }
-  }
-
-  /// Jalankan Probe Baterai & Bulanan (v1.2 "Probe Data
-  /// Bulanan", diperluas v1.3): baterai (battery_vol_percent,
-  /// battery_vol, grup baterai — semua tanpa multi_data) +
-  /// data_counter tanpa multi_data + traffic_alert_info,
-  /// tercatat mentah di log.
-  Future<void> runMonthlyProbe() async {
-    busy = true;
-    notifyListeners();
-    try {
-      await client.runMonthlyProbe();
-    } finally {
-      busy = false;
-      notifyListeners();
-    }
-  }
-
-  /// Jalankan Probe Persen Baterai (v3.0): satu panggilan grup
-  /// status WebUI utuh (multi_data=1) untuk membuktikan apakah
-  /// firmware mengisi battery_vol_percent bila diminta dalam
-  /// grup persis WebUI; hasilnya tercatat di log diagnostik.
-  Future<void> runBatteryPercentProbe() async {
-    busy = true;
-    notifyListeners();
-    try {
-      await client.runBatteryPercentProbe();
-    } finally {
-      busy = false;
-      notifyListeners();
-    }
-  }
-
-  /// Jalankan urutan tes reqproc dari klien (login → status → SMS →
-  /// kapasitas), lalu segarkan data aplikasi bila login berhasil.
-  Future<void> runFullTest() async {
-    busy = true;
-    notifyListeners();
-    try {
-      final ok = await client.runFullTest(adminPassword);
-      if (ok) {
-        loggedIn = true;
-        loginMessage = null;
-        await refreshStatus();
-        await refreshSms();
-      }
-    } finally {
-      busy = false;
-      notifyListeners();
-    }
-  }
-
-  /// Jalankan Probe Field Kosong (v1.1): minta field yang kembali
-  /// kosong dari panggilan status gabungan (data_counter,
-  /// station_list, lan_station_list, ssid) satu per satu / dalam
-  /// grup kecil ala WebUI, dan catat setiap respons mentahnya ke
-  /// log diagnostik — untuk menentukan bentuk panggilan yang benar.
-  Future<void> runFieldProbe() async {
-    busy = true;
-    notifyListeners();
-    try {
-      await client.runFieldProbe();
-    } finally {
-      busy = false;
-      notifyListeners();
-    }
-  }
-
-  /// Jalankan mode penemuan API: baca kode WebUI dari perangkat dan
-  /// cari endpoint aslinya (pengganti goform yang terbukti 404).
-  /// Semua hasil tercatat di log diagnostik yang sama.
-  Future<void> runDiscovery() async {
-    busy = true;
-    notifyListeners();
-    try {
-      await ApiDiscovery(gateway: gateway, log: log).run();
-    } finally {
-      busy = false;
-      notifyListeners();
-    }
-  }
-
-  /// Jalankan penemuan API lanjutan (v0.3): petakan tag <script>
-  /// RequireJS di index.html, coba kamus path modul yang umum, lalu
-  /// crawl nama modul dari require/define + paths: require.config
-  /// untuk menemukan file JS aplikasi WebUI yang dimuat dinamis.
-  /// Semua hasil tercatat di log diagnostik yang sama.
-  Future<void> runDiscoveryAdvanced() async {
-    busy = true;
-    notifyListeners();
-    try {
-      await ApiDiscoveryAdvanced(gateway: gateway, log: log).runAdvanced();
-    } finally {
-      busy = false;
-      notifyListeners();
-    }
-  }
-
-  /// Jalankan penemuan API final (v0.4): ambil enam file layanan
-  /// WebUI yang terpetakan dari require.config di js/main.js
-  /// (js/com.js, js/set.js, js/lib.js, js/sim_device.js, js/net.js,
-  /// js/wifi.js), pindai kandidat endpoint + konteks kata kunci
-  /// pemanggilan API-nya; isi set.js dicatat utuh bila kecil.
-  /// Semua hasil tercatat di log diagnostik yang sama.
-  Future<void> runDiscoveryFinal() async {
-    busy = true;
-    notifyListeners();
-    try {
-      await ApiDiscoveryFinal(gateway: gateway, log: log).runFinal();
-    } finally {
-      busy = false;
-      notifyListeners();
-    }
-  }
-
-  /// Jalankan penemuan terarah JS (v1.3): unduh PENUH
-  /// js/wifi.js, js/net.js, js/sim_device.js dari perangkat dan
-  /// catat konteks ±1200 karakter di sekitar SETIAP kemunculan
-  /// kata kunci spesifik per file (goformId/setWifiBasic/
-  /// MacFilter di wifi.js, DHCP_SETTING/DMZ/REBOOT/SNTP di
-  /// net.js, save_time/MessageCenter/status_save di
-  /// sim_device.js, dll) — bahan memastikan nama field wire
-  /// gelombang pengaturan berikutnya. Semua hasil tercatat di
-  /// log diagnostik yang sama.
-  Future<void> runTargetedDiscovery() async {
-    busy = true;
-    notifyListeners();
-    try {
-      await ApiDiscoveryTargeted(gateway: gateway, log: log).runTargeted();
-    } finally {
-      busy = false;
-      notifyListeners();
-    }
-  }
 }

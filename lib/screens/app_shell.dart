@@ -1,18 +1,19 @@
 import 'package:flutter/material.dart';
 
 import '../theme.dart';
-import 'diagnostics_screen.dart';
-import 'settings_screen.dart';
 import 'sms_screen.dart';
 import 'status_screen.dart';
+import 'wifi_screen.dart';
 
-/// Kerangka utama v3.0: AppBar bermerek + navigasi bawah 4 tab
-/// ala tpMiFi — Beranda, Tools, SMS, Diagnostik. (Tab "Pengaturan"
-/// v2.0 menjadi Tools; tab Status menjadi Beranda.)
+/// Kerangka utama v4.0 (SUPER SIMPEL) — AppBar bermerek +
+/// navigasi bawah 3 tab SAJA: Beranda, Wi-Fi, SMS. (Keputusan
+/// user: aplikasi dipangkas habis; tab Tools & Diagnostik
+/// v3.x HILANG, begitu pula seluruh hub Jaringan/Firewall/
+/// Sistem/Gateway/Hemat Daya dari aplikasi.)
 ///
-/// v3.1.1: judul app bar bukan lagi teks polos — ada marka
-/// Logo A kecil + wordmark "iPocket" tebal, konsisten di semua
-/// tab. Perpindahan tab kini memudar + bergeser tipis (Stack +
+/// Judul app bar: marka Logo A kecil + wordmark "iPocket"
+/// tebal (w800), konsisten di semua tab (v3.1.1).
+/// Perpindahan tab memudar + bergeser tipis (Stack +
 /// AnimatedOpacity/AnimatedSlide, keadaan tiap tab tetap
 /// tersimpan seperti IndexedStack lama lewat Offstage).
 class AppShell extends StatefulWidget {
@@ -31,11 +32,8 @@ class _AppShellState extends State<AppShell> {
       // `active` memberi tahu Beranda kapan tab-nya tampil,
       // untuk menyalakan/mematikan auto-refresh 2 detik.
       StatusScreen(active: _index == 0),
-      // Tile SMS/Diagnostik di grid Tools melompat ke tab
-      // terkait lewat callback ini.
-      ToolsScreen(onJumpToTab: (i) => setState(() => _index = i)),
+      const WifiScreen(),
       const SmsScreen(),
-      const DiagnosticsScreen(),
     ];
     return Scaffold(
       appBar: AppBar(
@@ -80,10 +78,11 @@ class _AppShellState extends State<AppShell> {
         ],
       ),
       bottomNavigationBar: NavigationBar(
-        // Tab bar navy Ookla (v3.0): latar #0A0F28, indikator &
-        // ikon aktif cyan, ikon nonaktif biru redup.
+        // Tab bar v4.0: latar navy pekat + indikator aktif
+        // berbentuk PIL cyan transparan (Material You) dari
+        // navigationBarTheme; ikon aktif cyan, nonaktif redup.
         backgroundColor: AppColors.tabBar,
-        indicatorColor: AppColors.panel,
+        height: 68,
         selectedIndex: _index,
         onDestinationSelected: (i) => setState(() => _index = i),
         destinations: const <NavigationDestination>[
@@ -93,21 +92,14 @@ class _AppShellState extends State<AppShell> {
             label: 'Beranda',
           ),
           NavigationDestination(
-            icon: Icon(Icons.grid_view_outlined,
-                color: AppColors.textFaint),
-            selectedIcon:
-                Icon(Icons.grid_view, color: AppColors.primary),
-            label: 'Tools',
+            icon: Icon(Icons.wifi_outlined, color: AppColors.textFaint),
+            selectedIcon: Icon(Icons.wifi, color: AppColors.primary),
+            label: 'Wi-Fi',
           ),
           NavigationDestination(
             icon: Icon(Icons.sms_outlined, color: AppColors.textFaint),
             selectedIcon: Icon(Icons.sms, color: AppColors.primary),
             label: 'SMS',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.terminal, color: AppColors.textFaint),
-            selectedIcon: Icon(Icons.terminal, color: AppColors.primary),
-            label: 'Diagnostik',
           ),
         ],
       ),

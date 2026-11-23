@@ -8,8 +8,6 @@ import '../models.dart';
 import '../theme.dart';
 import '../widgets.dart';
 import 'settings/devices_page.dart';
-import 'settings/system_page.dart';
-import 'settings/wifi_power_page.dart';
 
 // Palet Beranda dari token terpusat theme.dart v3.0 — navy
 // Ookla + cyan. Nama lokal dipertahankan agar isi layar ringkas.
@@ -18,7 +16,6 @@ const Color _ink = AppColors.textPrimary;
 const Color _inkSoft = AppColors.textSecondary;
 const Color _inkFaint = AppColors.textFaint;
 const Color _headerTop = AppColors.header;
-const Color _headerBottom = AppColors.bg;
 const Color _tileIcon = AppColors.accent;
 
 String _or(String? v) => (v == null || v.isEmpty) ? '—' : v;
@@ -55,9 +52,12 @@ String _fmtUptime(int? seconds) {
 /// (Logo A + kartu form) sebelum masuk; setelah masuk tampil
 /// header perangkat, indikator LIVE, GAUGE setengah lingkaran
 /// ala Ookla (total BULANAN asli + kecepatan live), 3 kartu
-/// statistik yang bisa diketuk (Baterai/Sinyal/Perangkat),
-/// tombol Sambung/Putus, kartu perangkat terhubung, dan detail
+/// statistik (v4.0: hanya Perangkat yang bisa diketuk),
+/// saklar Data Internet, kartu perangkat terhubung, dan detail
 /// SSID. Struktur mengikuti tpMiFi; data & logika identik v2.0.
+/// v4.0: seluruh permukaan Beranda memakai design system
+/// premium theme.dart — kartu glassy gradasi + tepi terang +
+/// bayangan, gauge berglow, angka hero tabular.
 /// Auto-refresh 2 detik selama tab ini tampil dan sudah login
 /// (v3.1: dipercepat dari 5 detik atas permintaan user, dengan
 /// indikator LIVE menggantikan teks penjelasan interval).
@@ -144,11 +144,7 @@ class _StatusScreenState extends State<StatusScreen> {
   Widget _loginView(BuildContext context, AppState state) {
     return Container(
       decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: <Color>[_headerTop, _headerBottom],
-        ),
+        gradient: AppGradients.background,
       ),
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(24, 40, 24, 20),
@@ -163,7 +159,7 @@ class _StatusScreenState extends State<StatusScreen> {
               style: TextStyle(
                 color: _ink,
                 fontSize: 40,
-                fontWeight: FontWeight.bold,
+                fontWeight: FontWeight.w800,
                 letterSpacing: 0.5,
               ),
             ),
@@ -179,10 +175,13 @@ class _StatusScreenState extends State<StatusScreen> {
               const SizedBox(height: 14),
             ],
             Container(
+              // v4.0: kartu masuk glassy — gradasi permukaan
+              // aksen + tepi terang + bayangan lembut.
               decoration: BoxDecoration(
-                color: AppColors.card,
+                gradient: AppGradients.surfaceAccent,
                 borderRadius: AppRadius.cardBorder,
-                border: Border.all(color: AppColors.border),
+                border: Border.all(color: AppColors.borderBright),
+                boxShadow: AppShadows.card,
               ),
               padding: const EdgeInsets.all(20),
               child: Column(
@@ -238,7 +237,7 @@ class _StatusScreenState extends State<StatusScreen> {
             ),
             const SizedBox(height: 44),
             const Text(
-              'v3.2',
+              'v4.0',
               textAlign: TextAlign.center,
               style: TextStyle(color: _inkFaint, fontSize: 12),
             ),
@@ -294,10 +293,11 @@ class _StatusScreenState extends State<StatusScreen> {
     return PressScale(
       child: Container(
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: <Color>[AppColors.accent, AppColors.gradientMid],
-        ),
+        // v4.0: gradasi identitas penuh cyan → biru → ungu +
+        // glow lembut di bawah tombol utama.
+        gradient: AppGradients.accentLine,
         borderRadius: AppRadius.tileBorder,
+        boxShadow: AppShadows.glowPrimary,
       ),
       child: Material(
         type: MaterialType.transparency,
@@ -433,16 +433,15 @@ class _StatusScreenState extends State<StatusScreen> {
 
   Widget _headerCard(BuildContext context, DeviceStatus? s) {
     return Container(
+      // v4.0: kartu perangkat glassy premium — gradasi
+      // permukaan aksen, tepi terang, bayangan lembut.
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        gradient: const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: <Color>[_headerTop, _headerBottom],
-        ),
-        border: Border.all(color: AppColors.border),
+        borderRadius: AppRadius.cardBorder,
+        gradient: AppGradients.surfaceAccent,
+        border: Border.all(color: AppColors.borderBright),
+        boxShadow: AppShadows.card,
       ),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(18),
       child: Row(
         children: <Widget>[
           Expanded(
@@ -453,8 +452,9 @@ class _StatusScreenState extends State<StatusScreen> {
                   'Advan iPocket',
                   style: TextStyle(
                     color: _ink,
-                    fontSize: 19,
-                    fontWeight: FontWeight.bold,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.2,
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -477,10 +477,7 @@ class _StatusScreenState extends State<StatusScreen> {
               const SizedBox(height: 4),
               Text(
                 s?.signalDbm == null ? '—' : '${s!.signalDbm} dBm',
-                style: const TextStyle(
-                  color: _ink,
-                  fontWeight: FontWeight.w600,
-                ),
+                style: AppText.statValue,
               ),
             ],
           ),
@@ -517,12 +514,14 @@ class _StatusScreenState extends State<StatusScreen> {
     final offline = state.statusOffline;
     final enabled = !offline && !state.busy;
     return Container(
+      // v4.0: permukaan glassy + bayangan, selaras kartu lain.
       decoration: BoxDecoration(
-        color: AppColors.card,
+        gradient: AppGradients.surface,
         borderRadius: AppRadius.cardBorder,
         border: Border.all(color: AppColors.border),
+        boxShadow: AppShadows.card,
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       child: Row(
         children: <Widget>[
           IconBox(
@@ -601,9 +600,17 @@ class _StatusScreenState extends State<StatusScreen> {
     final fraction = totalMonthly == null
         ? 0.0
         : (totalMonthly / denom).clamp(0.0, 1.0).toDouble();
-    return Card(
+    // v4.0: kartu gauge glassy premium (bukan Card datar) —
+    // gradasi permukaan + tepi terang + bayangan lembut.
+    return Container(
+      decoration: BoxDecoration(
+        gradient: AppGradients.surface,
+        borderRadius: AppRadius.cardBorder,
+        border: Border.all(color: AppColors.borderBright),
+        boxShadow: AppShadows.card,
+      ),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+        padding: const EdgeInsets.fromLTRB(20, 22, 20, 18),
         child: Column(
           children: <Widget>[
             SizedBox(
@@ -635,7 +642,7 @@ class _StatusScreenState extends State<StatusScreen> {
                           style: TextStyle(
                             color: _inkSoft,
                             fontSize: 11,
-                            letterSpacing: 1.2,
+                            letterSpacing: 1.6,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -644,11 +651,9 @@ class _StatusScreenState extends State<StatusScreen> {
                           totalMonthly == null
                               ? '—'
                               : _fmtBytes(totalMonthly),
-                          style: const TextStyle(
-                            fontSize: 32,
-                            fontWeight: FontWeight.bold,
-                            color: _ink,
-                          ),
+                          // v4.0: angka hero — besar, w800,
+                          // tabular (tidak bergeser antar-poll).
+                          style: AppText.displayNumber,
                         ),
                         const SizedBox(height: 2),
                         Text(
@@ -657,6 +662,7 @@ class _StatusScreenState extends State<StatusScreen> {
                           style: const TextStyle(
                             color: _inkSoft,
                             fontSize: 12.5,
+                            fontFeatures: AppText.tabular,
                           ),
                         ),
                         const SizedBox(height: 2),
@@ -683,8 +689,10 @@ class _StatusScreenState extends State<StatusScreen> {
   }
 
   /// Baris 3 kartu statistik Beranda v3.0 (ala mockup Ookla):
-  /// BATERAI, SINYAL, PERANGKAT — masing-masing bisa diketuk
-  /// menuju halaman terkait.
+  /// BATERAI, SINYAL, PERANGKAT. v4.0 (SUPER SIMPEL): hanya
+  /// kartu PERANGKAT yang bisa diketuk (→ Perangkat Terhubung);
+  /// Baterai & Sinyal kini tampilan saja karena halaman
+  /// tujuannya (Hemat Daya, Sistem) dihapus dari aplikasi.
   Widget _statsRow(BuildContext context, AppState state, DeviceStatus s) {
     // Jumlah klien dari daftar ASLI (panggilan terpisah tanpa
     // multi_data, diisi refreshStatus) — hitungan dari status
@@ -693,7 +701,7 @@ class _StatusScreenState extends State<StatusScreen> {
     final lanCount = state.lanStations.length;
     final clientsTotal = wifiCount + lanCount;
     // Baterai: persen asli (battery_vol_percent) hanya bila terisi
-    // (lihat Probe Persen Baterai di Diagnostik); selain itu label
+    // (field itu terbukti selalu kosong di firmware ini); selain itu label
     // LEVEL JUJUR dari battery_pers (skala 0–3: Tinggi / Sedang /
     // Rendah / Sangat Rendah — pilihan user v3.1, tanpa klaim
     // "Penuh") — battery_pers terbukti BUKAN persen, dan fallback
@@ -713,11 +721,6 @@ class _StatusScreenState extends State<StatusScreen> {
               s.batteryLevel,
               charging: s.batteryCharging == true,
             ),
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => const WifiPowerPage(),
-              ),
-            ),
           ),
         ),
         const SizedBox(width: 8),
@@ -726,11 +729,6 @@ class _StatusScreenState extends State<StatusScreen> {
             label: 'Sinyal',
             value: s.signalDbm == null ? '—' : '${s.signalDbm} dBm',
             sub: s.signalBar == null ? null : 'Bar ${s.signalBar}/5',
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => const SystemPage(),
-              ),
-            ),
           ),
         ),
         const SizedBox(width: 8),
@@ -803,63 +801,71 @@ class _StatusScreenState extends State<StatusScreen> {
   }
 
   /// Satu kartu statistik: label kecil uppercase sekunder, nilai
-  /// besar, sublabel redup opsional. Seluruh kartu bisa diketuk.
+  /// besar, sublabel redup opsional. Bila [onTap] diisi seluruh
+  /// kartu bisa diketuk (dengan ripple); selain itu tampilan
+  /// saja tanpa InkWell (v4.0: kartu Baterai & Sinyal).
+  /// v4.0 premium: permukaan Ink gradasi glassy + bayangan —
+  /// Ink (bukan Container) agar ripple tetap tampil DI ATAS
+  /// gradasi pada kartu yang bisa diketuk.
   Widget _statCard({
     required String label,
     required String value,
     String? sub,
     Widget? valueIcon,
-    required VoidCallback onTap,
+    VoidCallback? onTap,
   }) {
-    return Material(
-      color: AppColors.card,
-      borderRadius: AppRadius.cardBorder,
-      child: InkWell(
+    final inner = Ink(
+      decoration: BoxDecoration(
+        gradient: AppGradients.surface,
         borderRadius: AppRadius.cardBorder,
-        onTap: onTap,
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: AppRadius.cardBorder,
-            border: Border.all(color: AppColors.border),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              Text(
-                label.toUpperCase(),
-                style: const TextStyle(
-                  fontSize: 10,
-                  letterSpacing: 0.6,
-                  color: _inkSoft,
-                  fontWeight: FontWeight.w600,
-                ),
+        border: Border.all(color: AppColors.border),
+        boxShadow: AppShadows.card,
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Text(
+              label.toUpperCase(),
+              style: const TextStyle(
+                fontSize: 10,
+                letterSpacing: 1.0,
+                color: _inkSoft,
+                fontWeight: FontWeight.w600,
               ),
-              const SizedBox(height: 3),
-              if (valueIcon != null) ...<Widget>[
-                valueIcon,
-                const SizedBox(height: 4),
-              ],
-              Text(
-                value,
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold,
-                  color: _ink,
-                ),
-              ),
-              if (sub != null) ...<Widget>[
-                const SizedBox(height: 2),
-                Text(
-                  sub,
-                  style: const TextStyle(fontSize: 10.5, color: _inkFaint),
-                ),
-              ],
+            ),
+            const SizedBox(height: 3),
+            if (valueIcon != null) ...<Widget>[
+              valueIcon,
+              const SizedBox(height: 4),
             ],
-          ),
+            Text(
+              value,
+              style: AppText.statValue,
+            ),
+            if (sub != null) ...<Widget>[
+              const SizedBox(height: 2),
+              Text(
+                sub,
+                style: const TextStyle(fontSize: 10.5, color: _inkFaint),
+              ),
+            ],
+          ],
         ),
       ),
+    );
+    return Material(
+      color: Colors.transparent,
+      borderRadius: AppRadius.cardBorder,
+      child: onTap == null
+          ? inner
+          : InkWell(
+              borderRadius: AppRadius.cardBorder,
+              onTap: onTap,
+              child: inner,
+            ),
     );
   }
 
@@ -1108,9 +1114,17 @@ class _LiveIndicatorState extends State<_LiveIndicator>
           child: Container(
             width: 9,
             height: 9,
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               color: AppColors.success,
               shape: BoxShape.circle,
+              // v4.0: titik LIVE menyala lembut (glow hijau).
+              boxShadow: <BoxShadow>[
+                BoxShadow(
+                  color: AppColors.success.withValues(alpha: 0.55),
+                  blurRadius: 8,
+                  spreadRadius: 1,
+                ),
+              ],
             ),
           ),
         ),
@@ -1269,10 +1283,11 @@ class _LogoAPainter extends CustomPainter {
   bool shouldRepaint(_LogoAPainter oldDelegate) => false;
 }
 
-/// Gauge setengah lingkaran ala Ookla: busur latar #1B2650 +
-/// busur nilai gradasi horizontal cyan → biru → ungu, ujung
-/// bulat. Busur membentang 180° (kiri → atas → kanan) dengan
-/// pusat di tengah-bawah kanvas.
+/// Gauge setengah lingkaran premium v4.0: busur latar navy +
+/// busur nilai gradasi cyan → biru → ungu dengan GLOW lembut
+/// di belakangnya (sapuan blur biru) + titik ujung menyala,
+/// ujung membulat. Busur membentang 180° (kiri → atas →
+/// kanan) dengan pusat di tengah-bawah kanvas.
 class _GaugePainter extends CustomPainter {
   _GaugePainter({required this.fraction});
 
@@ -1281,7 +1296,7 @@ class _GaugePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    const stroke = 13.0;
+    const stroke = 14.0;
     final center = Offset(size.width / 2, size.height - stroke / 2 - 2);
     final radius = math.min(size.width / 2, size.height) - stroke / 2 - 2;
     final rect = Rect.fromCircle(center: center, radius: radius);
@@ -1294,6 +1309,16 @@ class _GaugePainter extends CustomPainter {
     canvas.drawArc(rect, math.pi, math.pi, false, bg);
 
     if (fraction > 0) {
+      // Glow: sapuan busur yang sama, lebih tebal & diburamkan,
+      // biru transparan — busur terasa menyala lembut.
+      final glow = Paint()
+        ..color = AppColors.gradientMid.withValues(alpha: 0.35)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = stroke + 12
+        ..strokeCap = StrokeCap.round
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 9);
+      canvas.drawArc(rect, math.pi, math.pi * fraction, false, glow);
+
       final fg = Paint()
         ..shader = const LinearGradient(
           colors: <Color>[
@@ -1306,6 +1331,18 @@ class _GaugePainter extends CustomPainter {
         ..strokeWidth = stroke
         ..strokeCap = StrokeCap.round;
       canvas.drawArc(rect, math.pi, math.pi * fraction, false, fg);
+
+      // Titik ujung menyala mengikuti ujung busur nilai.
+      final endAngle = math.pi + math.pi * fraction;
+      final endPoint = Offset(
+        center.dx + radius * math.cos(endAngle),
+        center.dy + radius * math.sin(endAngle),
+      );
+      canvas.drawCircle(
+        endPoint,
+        stroke * 0.34,
+        Paint()..color = Colors.white.withValues(alpha: 0.9),
+      );
     }
   }
 

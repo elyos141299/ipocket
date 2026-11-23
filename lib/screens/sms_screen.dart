@@ -331,13 +331,13 @@ class _SmsScreenState extends State<SmsScreen> {
       );
     }
     return ListView.builder(
-      padding: const EdgeInsets.all(12),
+      padding: AppSpace.page,
       itemCount: list.length,
       itemBuilder: (context, i) {
         final m = list[i];
         final unread = m.isUnread;
         return Padding(
-          padding: const EdgeInsets.only(bottom: AppSpace.sm),
+          padding: const EdgeInsets.only(bottom: AppSpace.md),
           child: Card(
             child: ListTile(
             onTap: unread && !state.busy
@@ -346,20 +346,36 @@ class _SmsScreenState extends State<SmsScreen> {
             leading: Stack(
               clipBehavior: Clip.none,
               children: <Widget>[
-                Icon(
-                  Icons.message,
-                  color: unread ? _primary : AppColors.textFaint,
+                // v4.0: avatar pesan = lingkaran glassy
+                // gradasi + ikon, selaras bahasa desain baru.
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    gradient: AppGradients.surface,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Icon(
+                    Icons.message,
+                    size: 20,
+                    color: unread ? _primary : AppColors.textFaint,
+                  ),
                 ),
                 if (unread)
                   Positioned(
-                    right: -2,
-                    top: -2,
+                    right: 0,
+                    top: 0,
                     child: Container(
-                      width: 9,
-                      height: 9,
-                      decoration: const BoxDecoration(
+                      width: 10,
+                      height: 10,
+                      decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: _primary,
+                        border: Border.all(
+                          color: AppColors.card,
+                          width: 1.5,
+                        ),
                       ),
                     ),
                   ),
@@ -368,7 +384,7 @@ class _SmsScreenState extends State<SmsScreen> {
             title: Text(
               m.number.isEmpty ? '—' : m.number,
               style: TextStyle(
-                fontWeight: unread ? FontWeight.bold : FontWeight.normal,
+                fontWeight: unread ? FontWeight.bold : FontWeight.w600,
               ),
             ),
             subtitle: Column(
