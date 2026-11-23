@@ -1,0 +1,59 @@
+name: Build iOS (unsigned IPA)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.5'
+          channel: 'stable'
+          cache: true
+
+      - name: Generate iOS platform folder from template
+        run: |
+          flutter create --platforms=ios --org id.oroboo --project-name ipocket /tmp/ipocket_template
+          rm -rf ios
+          cp -R /tmp/ipocket_template/ios ios
+
+      - name: Patch Info.plist (local network + ATS)
+        run: |
+          python3 - <<'PY'
+          import plistlib
+          p = 'ios/Runner/Info.plist'
+          with open(p, 'rb') as f:
+              d = plistlib.load(f)
+          d['NSLocalNetworkUsageDescription'] = 'Aplikasi perlu mengakses jaringan lokal untuk membaca status MiFi iPocket di rumahmu.'
+          ats = d.get('NSAppTransportSecurity', {})
+          ats['NSAllowsLocalNetworking'] = True
+          d['NSAppTransportSecurity'] = ats
+          with open(p, 'wb') as f:
+              plistlib.dump(d, f)
+          print('Info.plist patched')
+          PY
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build iOS (no codesign)
+        run: flutter build ios --release --no-codesign
+
+      - name: Package unsigned IPA
+        run: |
+          mkdir -p Payload
+          cp -R build/ios/iphoneos/Runner.app Payload/
+          zip -qry iPocket.ipa Payload
+          ls -la iPocket.ipa
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ipocket-ipa
+          path: iPocket.ipa
