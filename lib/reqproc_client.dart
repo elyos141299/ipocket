@@ -334,6 +334,236 @@ class ReqprocClient {
     return SmsCapacity.fromJson(res);
   }
 
+  /// Daftar perangkat terhubung — ATURAN EMAS probe v1.1: field
+  /// array RUSAK di panggilan multi_data gabungan, jadi
+  /// station_list & lan_station_list diminta TERPISAH dan TANPA
+  /// multi_data. Respons bisa berbentuk {"station_list":[...]}
+  /// atau array JSON telanjang (dibungkus _send sebagai _raw).
+  Future<({List<ConnectedDevice> wifi, List<ConnectedDevice> lan})>
+      getStations() async {
+    List<ConnectedDevice> pick(Map<String, dynamic> res, String key) {
+      if (res.containsKey(key)) return parseStationList(res[key]);
+      final rawArr = res['_raw'];
+      if (rawArr is List) return parseStationList(rawArr);
+      return <ConnectedDevice>[];
+    }
+
+    final wifiRes = await procGet(
+      <String, String>{'cmd': 'station_list'},
+      note: 'station_list terpisah (tanpa multi_data)',
+    );
+    final lanRes = await procGet(
+      <String, String>{'cmd': 'lan_station_list'},
+      note: 'lan_station_list terpisah (tanpa multi_data)',
+    );
+    return (
+      wifi: pick(wifiRes, 'station_list'),
+      lan: pick(lanRes, 'lan_station_list'),
+    );
+  }
+
+  /// Grup SSID datar ala WebUI (multi_data OK untuk field datar):
+  /// SSID1, HideSSID, AuthMode, MAX_Station_num.
+  Future<WifiSsidInfo> getWifiSsidInfo() async {
+    final res = await procGet(
+      <String, String>{
+        'cmd': 'SSID1,HideSSID,AuthMode,MAX_Station_num',
+        'multi_data': '1',
+      },
+      note: 'Grup SSID1 (multi_data)',
+    );
+    return WifiSsidInfo(res);
+  }
+
+  /// Format sms_time SEND_SMS. WebUI memakai getCurrentTimeString()
+  /// dari lib.js — definisinya TIDAK ada di dump com.js yang
+  /// terkumpul (hanya call-site-nya), jadi dipakai format umum
+  /// keluarga ZTE "yy;MM;dd;hh;mm;ss;+07" (zona perangkat
+  /// GMT+07:00 Jakarta). Setiap pengiriman mencatat catatan ini
+  /// ke log diagnostik agar bisa diverifikasi di perangkat asli.
+  static String smsTimeString(DateTime t) {
+    String two(int v) => v.toString().padLeft(2, '0');
+    final yy = two(t.year % 100);
+    return '$yy;${two(t.month)};${two(t.day)};${two(t.hour)};'
+        '${two(t.minute)};${two(t.second)};+07';
+  }
+
+  /// Kirim SMS: POST SEND_SMS {Number, sms_time,
+  /// MessageBody: escapeMessage(encodeMessage(pesan))} — pola
+  /// persis com.js; encodeMessage = hex UTF-16BE (lihat
+  /// [encodeSmsContent]) dan escape() JS tidak mengubah hex.
+  /// Mengembalikan Map respons mentah (result "success" = terkirim).
+  Future<Map<String, dynamic>> sendSms(String number, String message) {
+    log.addNote(
+      'SEND_SMS: sms_time memakai format umum ZTE '
+      '"yy;MM;dd;hh;mm;ss;+07" — definisi getCurrentTimeString() '
+      'WebUI tidak ada di dump com.js (hanya call-site), jadi '
+      'format ini ASUMSI yang perlu diverifikasi di perangkat.',
+    );
+    return procPost(
+      <String, String>{
+        'goformId': 'SEND_SMS',
+        'Number': number,
+        'sms_time': smsTimeString(DateTime.now()),
+        'MessageBody': encodeSmsContent(message),
+      },
+      note: 'Kirim SMS (SEND_SMS)',
+    );
+  }
+
+  /// Simpan draf SMS: POST SAVE_SMS {SMSMessage: hex UTF-16BE,
+  /// SMSNumber: "nomor;", Index} — pola com.js (numbers digabung
+  /// ";" + trailing ";"). Index kosong untuk draf baru.
+  Future<Map<String, dynamic>> saveSmsDraft(String number, String message) {
+    return procPost(
+      <String, String>{
+        'goformId': 'SAVE_SMS',
+        'SMSMessage': encodeSmsContent(message),
+        'SMSNumber': '$number;',
+        'Index': '',
+      },
+      note: 'Simpan draf SMS (SAVE_SMS)',
+    );
+  }
+
+  /// Hapus SMS: POST DELETE_SMS {msg_id: "id;id;"} — pola com.js
+  /// (ids digabung ";" plus ";" penutup).
+  Future<Map<String, dynamic>> deleteSms(List<String> ids) {
+    return procPost(
+      <String, String>{
+        'goformId': 'DELETE_SMS',
+        'msg_id': '${ids.join(';')};',
+      },
+      note: 'Hapus SMS (DELETE_SMS)',
+    );
+  }
+
+  /// Tandai SMS sudah dibaca: POST SET_MSG_READ {msg_id, tag: 0}
+  /// — pola com.js persis.
+  Future<Map<String, dynamic>> setSmsRead(List<String> ids) {
+    return procPost(
+      <String, String>{
+        'goformId': 'SET_MSG_READ',
+        'msg_id': '${ids.join(';')};',
+        'tag': '0',
+      },
+      note: 'Tandai SMS dibaca (SET_MSG_READ)',
+    );
+  }
+
+  /// Hapus SEMUA SMS perangkat: POST ALL_DELETE_SMS {which_cgi}.
+  /// com.js mengisi which_cgi dari `location` halaman WebUI; nilai
+  /// persisnya tidak terbaca dari dump — dipakai "inbox" (kotak
+  /// masuk perangkat yang ditampilkan aplikasi ini) dan hasilnya
+  /// tercatat mentah di log untuk verifikasi.
+  Future<Map<String, dynamic>> deleteAllSms() {
+    log.addNote(
+      'ALL_DELETE_SMS: which_cgi="inbox" adalah tebakan terbaik '
+      '(com.js mengambilnya dari location halaman WebUI; nilai '
+      'persis tidak ada di dump). Periksa result mentah di log.',
+    );
+    return procPost(
+      <String, String>{
+        'goformId': 'ALL_DELETE_SMS',
+        'which_cgi': 'inbox',
+      },
+      note: 'Hapus semua SMS (ALL_DELETE_SMS)',
+    );
+  }
+
+  /// Pengaturan SMS: POST SET_MESSAGE_CENTER {save_time,
+  /// MessageCenter, status_save} — pola com.js (save_time =
+  /// validitas, status_save = laporan pengiriman "1"/"0").
+  Future<Map<String, dynamic>> setMessageCenter({
+    required String saveTime,
+    required String messageCenter,
+    required String statusSave,
+  }) {
+    return procPost(
+      <String, String>{
+        'goformId': 'SET_MESSAGE_CENTER',
+        'save_time': saveTime,
+        'MessageCenter': messageCenter,
+        'status_save': statusSave,
+      },
+      note: 'Pengaturan SMS (SET_MESSAGE_CENTER)',
+    );
+  }
+
+  /// Sambungkan data: POST CONNECT_NETWORK (result "success").
+  Future<Map<String, dynamic>> connectNetwork() {
+    return procPost(
+      <String, String>{'goformId': 'CONNECT_NETWORK'},
+      note: 'Sambungkan (CONNECT_NETWORK)',
+    );
+  }
+
+  /// Putuskan data: POST DISCONNECT_NETWORK (result "success").
+  Future<Map<String, dynamic>> disconnectNetwork() {
+    return procPost(
+      <String, String>{'goformId': 'DISCONNECT_NETWORK'},
+      note: 'Putuskan (DISCONNECT_NETWORK)',
+    );
+  }
+
+  /// Mulai ulang perangkat: POST REBOOT_DEVICE (pola standar
+  /// ZTE; id ini tidak muncul di konteks dump com.js yang
+  /// terkumpul — hasil mentahnya tercatat di log untuk
+  /// verifikasi di perangkat asli).
+  Future<Map<String, dynamic>> rebootDevice() {
+    log.addNote(
+      'REBOOT_DEVICE: goformId pola standar ZTE, belum terbukti '
+      'di unit ini — nilai result mentah di respons ini adalah '
+      'verifikasinya.',
+    );
+    return procPost(
+      <String, String>{'goformId': 'REBOOT_DEVICE'},
+      note: 'Mulai ulang perangkat (REBOOT_DEVICE)',
+    );
+  }
+
+  /// Ganti kata sandi login: POST CHANGE_PASSWORD {newPassword,
+  /// oldPassword} — keduanya Base64 (PASSWORD_ENCODE=true),
+  /// pola com.js terkonfirmasi. True bila result == "success".
+  Future<bool> changePassword(String oldPassword, String newPassword) async {
+    final res = await procPost(
+      <String, String>{
+        'goformId': 'CHANGE_PASSWORD',
+        'newPassword': base64Encode(utf8.encode(newPassword)),
+        'oldPassword': base64Encode(utf8.encode(oldPassword)),
+      },
+      note: 'Ganti kata sandi login (CHANGE_PASSWORD)',
+    );
+    return res['result']?.toString() == 'success';
+  }
+
+  /// Probe Data Bulanan (v1.2): dua bentuk panggilan yang belum
+  /// pernah dicoba untuk data_counter — tanpa multi_data, plus
+  /// cmd traffic_alert_info (modul status_traffic_alert WebUI).
+  /// Dugaan kuat data_counter kosong karena rencana Manajemen
+  /// Data nonaktif di perangkat; probe ini pembuktiannya.
+  /// Semua respons mentah tercatat lewat [procGet].
+  Future<void> runMonthlyProbe() async {
+    log.addNote('=== PROBE DATA BULANAN DIMULAI ===');
+    try {
+      await procGet(
+        <String, String>{'cmd': 'data_counter'},
+        note: 'Probe bulanan: data_counter TANPA multi_data',
+      );
+    } catch (e) {
+      log.addNote('Probe data_counter (tanpa multi_data) gagal: $e');
+    }
+    try {
+      await procGet(
+        <String, String>{'cmd': 'traffic_alert_info'},
+        note: 'Probe bulanan: traffic_alert_info',
+      );
+    } catch (e) {
+      log.addNote('Probe traffic_alert_info gagal: $e');
+    }
+    log.addNote('=== PROBE DATA BULANAN SELESAI ===');
+  }
+
   /// Probe Field Kosong (v1.1): dari uji perangkat asli v1.0,
   /// beberapa field kembali "" dari panggilan status gabungan
   /// (data_counter, station_list, lan_station_list, ssid,

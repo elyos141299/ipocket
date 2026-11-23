@@ -54,6 +54,12 @@ class DiagnosticsScreen extends StatelessWidget {
                     icon: const Icon(Icons.radar),
                     label: const Text('Probe Field Kosong'),
                   ),
+                  FilledButton.icon(
+                    onPressed:
+                        state.busy ? null : () => state.runMonthlyProbe(),
+                    icon: const Icon(Icons.calendar_month),
+                    label: const Text('Probe Data Bulanan'),
+                  ),
                   OutlinedButton.icon(
                     onPressed: () async {
                       await Clipboard.setData(ClipboardData(text: text));

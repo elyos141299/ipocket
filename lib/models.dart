@@ -315,6 +315,109 @@ class SmsMessage {
   bool get isUnread => tag == '1';
 }
 
+/// Satu perangkat terhubung dari `station_list` (nirkabel) atau
+/// `lan_station_list` (kabel). Bentuk respons TERBUKTI dari probe
+/// v1.1 (panggilan terpisah TANPA multi_data): array objek
+/// {connect_time, dev_type, mac_addr, hostname, ip_addr, ip_type}.
+/// Parser tetap toleran terhadap bentuk lain (string JSON, Map).
+class ConnectedDevice {
+  ConnectedDevice({
+    required this.hostname,
+    required this.ipAddr,
+    required this.macAddr,
+    required this.devType,
+    this.connectTime,
+    this.ipType,
+  });
+
+  factory ConnectedDevice.fromJson(Map<String, dynamic> json) {
+    String s(String k) => json[k]?.toString().trim() ?? '';
+    return ConnectedDevice(
+      hostname: s('hostname'),
+      ipAddr: s('ip_addr'),
+      macAddr: s('mac_addr'),
+      devType: s('dev_type'),
+      connectTime: s('connect_time').isEmpty ? null : s('connect_time'),
+      ipType: s('ip_type').isEmpty ? null : s('ip_type'),
+    );
+  }
+
+  final String hostname;
+  final String ipAddr;
+  final String macAddr;
+
+  /// "wifi" untuk station_list; nilai perangkat untuk kabel.
+  final String devType;
+  final String? connectTime;
+  final String? ipType;
+
+  String get displayName => hostname.isNotEmpty ? hostname : '—';
+}
+
+/// Parse toleran daftar stasiun: menerima List of Map, string JSON
+/// array, Map (diambil values-nya), atau string kosong → kosong.
+List<ConnectedDevice> parseStationList(dynamic v) {
+  dynamic data = v;
+  if (data is String) {
+    final t = data.trim();
+    if (t.isEmpty) return <ConnectedDevice>[];
+    try {
+      data = jsonDecode(t);
+    } catch (_) {
+      return <ConnectedDevice>[];
+    }
+  }
+  final out = <ConnectedDevice>[];
+  if (data is List) {
+    for (final e in data) {
+      if (e is Map) {
+        out.add(ConnectedDevice.fromJson(
+          e.map((k, val) => MapEntry(k.toString(), val)),
+        ));
+      }
+    }
+  } else if (data is Map) {
+    for (final e in data.values) {
+      if (e is Map) {
+        out.add(ConnectedDevice.fromJson(
+          e.map((k, val) => MapEntry(k.toString(), val)),
+        ));
+      }
+    }
+  }
+  return out;
+}
+
+/// Info SSID dari grup WiFi datar (multi_data=1):
+/// cmd=SSID1,HideSSID,AuthMode,MAX_Station_num — TERBUKTI probe
+/// v1.1: SSID1="iPocket", HideSSID="0", AuthMode="WPA2PSK",
+/// MAX_Station_num="32". Field `ssid` huruf kecil di status
+/// gabungan selalu kosong, jadi grup inilah sumber SSID asli.
+class WifiSsidInfo {
+  WifiSsidInfo(this.raw);
+
+  final Map<String, dynamic> raw;
+
+  String? _s(String key) {
+    final v = raw[key];
+    if (v == null) return null;
+    final s = v.toString().trim();
+    return s.isEmpty ? null : s;
+  }
+
+  String? get ssid => _s('SSID1');
+  String? get authMode => _s('AuthMode');
+  String? get maxStationNum => _s('MAX_Station_num');
+
+  bool? get ssidHidden {
+    final s = _s('HideSSID');
+    if (s == null) return null;
+    if (s == '1' || s.toLowerCase() == 'true') return true;
+    if (s == '0' || s.toLowerCase() == 'false') return false;
+    return null;
+  }
+}
+
 /// Decode `content` SMS: hex UTF-16BE → teks.
 /// Bila isinya bukan hex murni, kembalikan apa adanya (kemungkinan teks
 /// polos dari firmware).
@@ -336,4 +439,17 @@ String decodeSmsContent(String content) {
   } catch (_) {
     return content;
   }
+}
+
+/// Encode teks SMS → hex UTF-16BE (kebalikan [decodeSmsContent]).
+/// Inilah `encodeMessage` WebUI; hasilnya hanya berisi karakter
+/// hex [0-9a-f], sehingga `escapeMessage` (JS escape) WebUI tidak
+/// mengubahnya — string hex ini langsung menjadi MessageBody
+/// SEND_SMS / SMSMessage SAVE_SMS.
+String encodeSmsContent(String text) {
+  final sb = StringBuffer();
+  for (final unit in text.codeUnits) {
+    sb.write(unit.toRadixString(16).padLeft(4, '0'));
+  }
+  return sb.toString();
 }

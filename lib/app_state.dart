@@ -37,6 +37,15 @@ class AppState extends ChangeNotifier {
   List<SmsMessage>? smsList;
   SmsCapacity? smsCapacity;
 
+  /// Perangkat terhubung dari panggilan TERPISAH tanpa multi_data
+  /// (probe v1.1: array rusak di panggilan gabungan). Diisi
+  /// refreshStatus; kosong = belum terbaca / tidak ada klien.
+  List<ConnectedDevice> wifiStations = <ConnectedDevice>[];
+  List<ConnectedDevice> lanStations = <ConnectedDevice>[];
+
+  /// Info SSID asli dari grup SSID1 (field `ssid` gabungan mati).
+  WifiSsidInfo? wifiInfo;
+
   /// Sampel counter sesi sebelumnya — dasar hitung kecepatan ↑/↓
   /// (realtime_tx_rate/realtime_rx_rate kosong di perangkat ini,
   /// jadi kecepatan dihitung dari selisih byte antar-sampel).
@@ -53,6 +62,9 @@ class AppState extends ChangeNotifier {
     status = null;
     smsList = null;
     smsCapacity = null;
+    wifiStations = <ConnectedDevice>[];
+    lanStations = <ConnectedDevice>[];
+    wifiInfo = null;
     _prevTxBytes = null;
     _prevRxBytes = null;
     _prevSampleAt = null;
@@ -113,6 +125,10 @@ class AppState extends ChangeNotifier {
   }
 
   /// Muat ulang status gabungan (dipakai dashboard + auto-refresh).
+  /// Sekalian mengambil daftar perangkat terhubung (2 GET terpisah
+  /// tanpa multi_data — aturan emas probe v1.1) dan grup SSID1;
+  /// kegagalan dua panggilan ekstra itu tidak menggagalkan status
+  /// utama (sudah tercatat di log diagnostik).
   Future<void> refreshStatus() async {
     try {
       final rawMap = await client.getStatus();
@@ -121,6 +137,18 @@ class AppState extends ChangeNotifier {
       status = parsed;
     } catch (e) {
       lastError = 'Gagal memuat status: $e';
+    }
+    try {
+      final st = await client.getStations();
+      wifiStations = st.wifi;
+      lanStations = st.lan;
+    } catch (_) {
+      // Daftar perangkat hanya pelengkap dashboard.
+    }
+    try {
+      wifiInfo = await client.getWifiSsidInfo();
+    } catch (_) {
+      // Info SSID hanya pelengkap dashboard.
     }
     notifyListeners();
   }
@@ -177,6 +205,171 @@ class AppState extends ChangeNotifier {
     }
     if (!wasBusy) busy = false;
     notifyListeners();
+  }
+
+  /// Pola bersama aksi tulis SMS: jalankan POST, anggap berhasil
+  /// bila result == "success", lalu segarkan daftar SMS. Pesan
+  /// hasil (Bahasa Indonesia) dikembalikan untuk snackbar UI;
+  /// respons mentah selalu tercatat di log diagnostik oleh klien.
+  Future<String> _smsWrite(
+    Future<Map<String, dynamic>> Function() action,
+    String okText,
+  ) async {
+    busy = true;
+    notifyListeners();
+    try {
+      final res = await action();
+      final ok = res['result']?.toString() == 'success';
+      if (ok) {
+        await refreshSms();
+        return okText;
+      }
+      return 'Perangkat menjawab result=${res['result'] ?? 'tidak dikenal'} '
+          '— periksa log Diagnostik.';
+    } catch (e) {
+      return 'Gagal menghubungi MiFi: $e';
+    } finally {
+      busy = false;
+      notifyListeners();
+    }
+  }
+
+  /// Kirim SMS (SEND_SMS).
+  Future<String> sendSms(String number, String message) => _smsWrite(
+        () => client.sendSms(number, message),
+        'SMS terkirim ke $number.',
+      );
+
+  /// Simpan draf SMS (SAVE_SMS).
+  Future<String> saveSmsDraft(String number, String message) => _smsWrite(
+        () => client.saveSmsDraft(number, message),
+        'Draf SMS tersimpan.',
+      );
+
+  /// Hapus satu SMS (DELETE_SMS).
+  Future<String> deleteSms(SmsMessage m) => _smsWrite(
+        () => client.deleteSms(<String>[m.id]),
+        'SMS terhapus.',
+      );
+
+  /// Tandai SMS sudah dibaca (SET_MSG_READ) — tanpa snackbar;
+  /// daftar disegarkan agar titik "belum dibaca" hilang.
+  Future<void> markSmsRead(SmsMessage m) async {
+    try {
+      await client.setSmsRead(<String>[m.id]);
+      await refreshSms();
+    } catch (_) {
+      // Gagal menandai tidak kritis; sudah tercatat di log.
+    }
+  }
+
+  /// Hapus SEMUA SMS perangkat (ALL_DELETE_SMS).
+  Future<String> deleteAllSms() => _smsWrite(
+        () => client.deleteAllSms(),
+        'Semua SMS terhapus.',
+      );
+
+  /// Simpan pengaturan SMS (SET_MESSAGE_CENTER).
+  Future<String> saveSmsSettings({
+    required String saveTime,
+    required String messageCenter,
+    required String statusSave,
+  }) =>
+      _smsWrite(
+        () => client.setMessageCenter(
+          saveTime: saveTime,
+          messageCenter: messageCenter,
+          statusSave: statusSave,
+        ),
+        'Pengaturan SMS tersimpan.',
+      );
+
+  /// Sambung/putus data (CONNECT_NETWORK / DISCONNECT_NETWORK).
+  /// Berhasil bila result == "success"; status disegarkan sesudahnya.
+  Future<String> toggleConnection(bool connect) async {
+    busy = true;
+    notifyListeners();
+    try {
+      final res = connect
+          ? await client.connectNetwork()
+          : await client.disconnectNetwork();
+      final ok = res['result']?.toString() == 'success';
+      await refreshStatus();
+      if (ok) {
+        return connect
+            ? 'Perintah sambung terkirim.'
+            : 'Perintah putus terkirim.';
+      }
+      return 'Perangkat menjawab result=${res['result'] ?? 'tidak dikenal'} '
+          '— periksa log Diagnostik.';
+    } catch (e) {
+      return 'Gagal menghubungi MiFi: $e';
+    } finally {
+      busy = false;
+      notifyListeners();
+    }
+  }
+
+  /// Mulai ulang perangkat (REBOOT_DEVICE). Mengembalikan pesan
+  /// hasil; sesi kemungkinan putus sesudahnya (perangkat boot
+  /// ulang) — pengguna masuk lagi setelah perangkat siap.
+  Future<String> rebootDevice() async {
+    busy = true;
+    notifyListeners();
+    try {
+      final res = await client.rebootDevice();
+      final r = res['result']?.toString();
+      log.addNote('REBOOT_DEVICE result mentah: ${r ?? '(kosong)'}');
+      return 'Perintah mulai ulang terkirim (result=${r ?? 'kosong'}). '
+          'MiFi akan boot ulang — tunggu ±1 menit lalu masuk lagi '
+          'bila sesi terputus.';
+    } catch (e) {
+      return 'Tidak ada respons utuh dari MiFi ($e) — wajar bila '
+          'perangkat langsung mulai ulang. Tunggu ±1 menit lalu '
+          'masuk lagi.';
+    } finally {
+      busy = false;
+      notifyListeners();
+    }
+  }
+
+  /// Ganti kata sandi login (CHANGE_PASSWORD). Bila sukses: sesi
+  /// ditutup dan pengguna diarahkan ke layar login dengan sandi
+  /// baru (sandi baru disimpan di memori sebagai sandi aktif).
+  Future<String> changePassword(String oldPw, String newPw) async {
+    busy = true;
+    notifyListeners();
+    try {
+      final ok = await client.changePassword(oldPw, newPw);
+      if (ok) {
+        adminPassword = newPw;
+        loggedIn = false;
+        client.clearSession();
+        loginMessage = 'Kata sandi berhasil diganti. Masuk lagi '
+            'dengan kata sandi barumu.';
+        return 'Kata sandi diganti. Silakan masuk lagi.';
+      }
+      return 'Perangkat menolak ganti sandi — periksa kata sandi '
+          'lamamu, lalu coba lagi.';
+    } catch (e) {
+      return 'Gagal menghubungi MiFi: $e';
+    } finally {
+      busy = false;
+      notifyListeners();
+    }
+  }
+
+  /// Jalankan Probe Data Bulanan (v1.2): data_counter tanpa
+  /// multi_data + traffic_alert_info, tercatat mentah di log.
+  Future<void> runMonthlyProbe() async {
+    busy = true;
+    notifyListeners();
+    try {
+      await client.runMonthlyProbe();
+    } finally {
+      busy = false;
+      notifyListeners();
+    }
   }
 
   /// Jalankan urutan tes reqproc dari klien (login → status → SMS →

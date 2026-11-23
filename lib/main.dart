@@ -14,11 +14,11 @@ class IPocketApp extends StatelessWidget {
     return MaterialApp(
       title: 'iPocket',
       theme: ThemeData(
-        // Tema biru muda sesuai UI-REFERENCE.md.
+        // Tema branding Advan: pink magenta #EC008D.
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF0288D1),
+          seedColor: const Color(0xFFEC008D),
         ),
-        scaffoldBackgroundColor: const Color(0xFFF2F9FE),
+        scaffoldBackgroundColor: const Color(0xFFFBF8FA),
         cardColor: Colors.white,
         useMaterial3: true,
       ),

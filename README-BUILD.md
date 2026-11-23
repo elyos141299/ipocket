@@ -4,7 +4,9 @@ Aplikasi Flutter "iPocket": panel status untuk MiFi Advan iPocket MF01
 (API reqproc perangkat) — pantau sinyal, baterai, perangkat terhubung,
 dan SMS tanpa membuka browser. Spesifikasi API: `../API-CONTRACT.md`.
 
-Versi: **v1.1** — perbaikan dari uji perangkat asli v1.0.
+Versi: **v1.2** — tema Advan ter-push, dashboard tuntas,
+Gelombang A (SMS penuh + sambung/putus + reboot + ganti sandi),
+ikon aplikasi siap tanam.
 Riwayat singkat: v0.2 membuktikan firmware
 perangkat menjawab 404 untuk /goform/*; penemuan bertingkat
 (v0.2–v0.4, aplikasi membaca JS WebUI dari perangkat: index →
@@ -64,6 +66,81 @@ panggilan status gabungan):
    level (+ "· Mengisi" bila `battery_charging`), dan baris
    detail menampilkan "Level 3 (Penuh)".
 
+**Tema Advan** (ter-push di v1.2): tema aplikasi diganti dari
+biru muda referensi ke branding Advan — primer pink magenta
+**#EC008D** (dari logo resmi Advan), aksen terang #F95FB4, tinta
+nyaris hitam hangat #16121A, latar #FBF8FA. Header dashboard
+kini gradasi gelap #16121A → #2A1530 dengan teks putih;
+lingkaran data ber-progress pink dengan track abu muda; ikon
+tile berlatar pink muda #FCE4F1 dengan ikon pink gelap #C2187A;
+tab aktif dan tombol utama mengikuti seed ColorScheme #EC008D.
+
+**Logo final** (keputusan user 23 Nov 2026): huruf "i"
+ditinggalkan — logo resmi = simbol WiFi varian B "gelap
+premium": glyph WiFi gradasi pink #F95FB4 → #EC008D di atas
+latar gelap #2A1530 → #16121A (master melengkung:
+`../logo-final.png`). Untuk ikon aplikasi sudah dibuat varian
+**kotak penuh 1024×1024** (tanpa sudut bulat, tanpa
+transparansi): `assets/icon-1024.png`, plus salinan base64 satu
+file teks `assets/icon-1024.b64.txt` — siap ditanam ke
+AppIcon.appiconset oleh langkah workflow berikutnya (workflow
+TIDAK diubah di v1.2; ikon di perangkat masih bawaan Flutter
+sampai langkah itu dibuat).
+
+**v1.2** (dari hasil Probe Field Kosong v1.1, perangkat asli
+23 Nov 2026 — aturan emas: field array/objek RUSAK di panggilan
+multi_data gabungan):
+
+1. **Dashboard tuntas** — `station_list` & `lan_station_list`
+   diambil dengan 2 GET terpisah TANPA multi_data mengikuti
+   siklus refresh (model `ConnectedDevice`, parser toleran):
+   tile Clients menampilkan total + rincian "WiFi N • kabel M",
+   dan kartu "Perangkat Terhubung" merinci hostname, IP, MAC,
+   tipe tiap klien. SSID asli dari grup datar
+   `SSID1,HideSSID,AuthMode,MAX_Station_num` (multi_data OK —
+   model `WifiSsidInfo`): baris SSID, mode keamanan, SSID
+   disembunyikan, dan batas akses kini dari nilai perangkat
+   yang sebenarnya (SSID1="iPocket", AuthMode="WPA2PSK",
+   MAX_Station_num="32").
+2. **Probe Data Bulanan** — tombol baru di Diagnostik:
+   `GET cmd=data_counter` TANPA multi_data + `GET
+   cmd=traffic_alert_info`, tercatat mentah. Dugaan kuat
+   data_counter tetap kosong karena rencana Manajemen Data
+   NONAKTIF di perangkat — lingkaran dashboard tetap fallback
+   total sesi berlabel jujur; jangan dipaksa.
+3. **Gelombang A — SMS penuh** (pola POST terkonfirmasi dari
+   dump com.js): kirim `SEND_SMS` {Number, sms_time,
+   MessageBody = hex UTF-16BE (`encodeSmsContent`, kebalikan
+   decode yang sudah ada — `escapeMessage` WebUI tidak
+   mengubah hex)}, simpan draf `SAVE_SMS` {SMSMessage,
+   SMSNumber "nomor;", Index}, hapus per pesan `DELETE_SMS`
+   {msg_id "id;"}, ketuk pesan belum dibaca → `SET_MSG_READ`
+   {tag 0}, hapus semua `ALL_DELETE_SMS` {which_cgi},
+   pengaturan `SET_MESSAGE_CENTER` {save_time, MessageCenter,
+   status_save} (nomor pusat awal +62816124 dari katalog
+   WebUI). Hapus memakai dialog konfirmasi; semua hasil POST
+   tercatat di log Diagnostik; daftar SMS disegarkan setelah
+   sukses. Tiga catatan asumsi yang ditandai juga di log:
+   (a) format `sms_time` — definisi `getCurrentTimeString()`
+   WebUI tidak ada di dump com.js (hanya call-site), dipakai
+   format umum ZTE "yy;MM;dd;hh;mm;ss;+07"; (b) `which_cgi`
+   hapus-semua = "inbox" (com.js mengambilnya dari location
+   halaman WebUI); (c) pemetaan save_time validitas
+   "0".."3" = 12 Jam/1 Hari/1 Minggu/Maksimum mengikuti urutan
+   pilihan WebUI.
+4. **Gelombang A — sambung/putus**: tombol di tab Status
+   mengikuti `ppp_status` (Terhubung → "Putuskan" =
+   DISCONNECT_NETWORK; sebaliknya CONNECT_NETWORK);
+   result "success" = berhasil, lalu status disegarkan.
+5. **Gelombang A — perangkat**: di tab Pengaturan, **Mulai
+   Ulang Perangkat** (`REBOOT_DEVICE`, dialog konfirmasi
+   tegas, hasil mentah dicatat ke log — goformId pola standar
+   ZTE, verifikasinya adalah respons perangkat asli) dan
+   **Ganti Kata Sandi Login** (`CHANGE_PASSWORD`, sandi lama &
+   baru Base64 — terkonfirmasi com.js; form lama/baru/
+   konfirmasi; sukses → sesi ditutup dan pengguna diarahkan
+   ke layar login).
+
 Asumsi tampilan lingkaran data: perangkat user TIDAK mengatur
 batas data (Manajemen Data "Tidak diatur"), jadi ring digambar
 proporsional terhadap **patokan tampilan 10 GB** — angka di tengah
@@ -80,6 +157,10 @@ app/
 ├── analysis_options.yaml
 ├── IOS-NOTES.md            # potongan Info.plist wajib + bundle id
 ├── README-BUILD.md         # file ini
+├── assets/
+│   ├── icon-1024.png       # ikon aplikasi kotak penuh 1024×1024
+│   │                       # (Logo B) — siap tanam ke AppIcon
+│   └── icon-1024.b64.txt   # salinan base64 ikon (satu file teks)
 └── lib/
     ├── main.dart           # MaterialApp "iPocket" → AppShell
     ├── app_state.dart      # state bersama (gateway, password, sesi) —
@@ -88,7 +169,14 @@ app/
     │                       # jar, login LOGIN sandi Base64 (hasil
     │                       # terstruktur), status gabungan, SMS +
     │                       # kapasitas, Tes Lengkap reqproc; juga
-    │                       # rumah DiagEntry/DiagnosticsLog bersama
+    │                       # rumah DiagEntry/DiagnosticsLog bersama;
+    │                       # v1.2: station_list terpisah, grup
+    │                       # SSID1, POST Gelombang A (SEND_SMS,
+    │                       # SAVE_SMS, DELETE_SMS, SET_MSG_READ,
+    │                       # ALL_DELETE_SMS, SET_MESSAGE_CENTER,
+    │                       # CONNECT/DISCONNECT_NETWORK,
+    │                       # REBOOT_DEVICE, CHANGE_PASSWORD),
+    │                       # Probe Data Bulanan
     ├── discovery.dart      # v0.2: penemuan API — unduh HTML + file JS
     │                       # WebUI dari perangkat, pindai kandidat
     │                       # endpoint & konteks panggilan AJAX/fetch
@@ -104,16 +192,24 @@ app/
     │                       # baterai persen/level, sinyal per jenis jaringan,
     │                       # data_counter Map/string, station_list
     │                       # List/string) + SmsCapacity + SmsMessage
-    │                       # + decode hex UTF-16BE
+    │                       # + decode/encode hex UTF-16BE;
+    │                       # v1.2: ConnectedDevice + parseStationList
+    │                       # + WifiSsidInfo (grup SSID1)
     └── screens/
         ├── app_shell.dart        # AppBar + navigasi bawah 4 tab
         ├── status_screen.dart    # dashboard: sambutan+login, header,
-        │                       # lingkaran data bulanan, 4 tile,
-        │                       # detail, auto-refresh 15 detik
-        ├── sms_screen.dart       # daftar SMS asli + kapasitas
-        │                       # (baca-saja)
+        │                       # tombol sambung/putus, lingkaran data
+        │                       # bulanan/sesi, 4 tile, detail (SSID
+        │                       # asli), daftar perangkat terhubung,
+        │                       # auto-refresh 15 detik
+        ├── sms_screen.dart       # SMS penuh: daftar + kapasitas,
+        │                       # tulis/kirim, draf, hapus, tandai
+        │                       # dibaca, hapus semua, pengaturan SMS
         ├── diagnostics_screen.dart # log request mentah + Tes Lengkap
-        └── settings_screen.dart  # satu field gateway
+        │                       # + Probe Field Kosong + Probe Data
+        │                       # Bulanan
+        └── settings_screen.dart  # gateway + mulai ulang perangkat
+                                # + ganti kata sandi login
 ```
 
 Tab Diagnostik adalah alat verifikasi lapangan: tombol **Jalankan
@@ -124,7 +220,10 @@ asli. Tombol **Probe Field Kosong** (v1.1) meminta field yang
 kosong dari panggilan gabungan (`data_counter`, `station_list`,
 `lan_station_list`, `ssid`, grup `SSID1,HideSSID,AuthMode,
 MAX_Station_num`, dan kombinasi `data_counter` + counter sesi)
-satu per satu dan mencatat respons mentahnya. Tombol kedua,
+satu per satu dan mencatat respons mentahnya. Tombol **Probe
+Data Bulanan** (v1.2) mencoba dua bentuk terakhir untuk
+data bulanan: `data_counter` tanpa multi_data dan
+`traffic_alert_info`. Tombol kedua,
 **Jalankan Penemuan API** (v0.2), membaca HTML + file JS WebUI dari
 perangkat dan mencatat kandidat endpoint asli beserta konteks
 pemanggilannya ke log yang sama. Tombol ketiga, **Penemuan API

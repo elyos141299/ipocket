@@ -6,10 +6,15 @@ import 'package:flutter/material.dart';
 import '../app_state.dart';
 import '../models.dart';
 
-// Palet dashboard (UI-REFERENCE.md): biru muda bersih.
-const Color _primary = Color(0xFF0288D1);
-const Color _accent = Color(0xFF38BDF8);
-const Color _ink = Color(0xFF0B2B40);
+// Palet dashboard: branding Advan — pink magenta #EC008D,
+// aksen pink terang, tinta nyaris hitam hangat.
+const Color _primary = Color(0xFFEC008D);
+const Color _accent = Color(0xFFF95FB4);
+const Color _ink = Color(0xFF16121A);
+const Color _headerDark = Color(0xFF16121A);
+const Color _headerDeep = Color(0xFF2A1530);
+const Color _tileBg = Color(0xFFFCE4F1);
+const Color _tileIcon = Color(0xFFC2187A);
 
 String _or(String? v) => (v == null || v.isEmpty) ? '—' : v;
 
@@ -255,11 +260,15 @@ class _StatusScreenState extends State<StatusScreen> {
       widgets.add(const Text('Memuat status perangkat…'));
     } else {
       widgets.addAll(<Widget>[
+        _connectionButton(context, state, s),
+        const SizedBox(height: 12),
         _usageCard(context, s),
         const SizedBox(height: 12),
         _tilesGrid(context, state, s),
         const SizedBox(height: 12),
-        _detailCard(context, s),
+        _detailCard(context, state, s),
+        const SizedBox(height: 12),
+        _devicesCard(context, state),
       ]);
     }
     return widgets;
@@ -272,7 +281,7 @@ class _StatusScreenState extends State<StatusScreen> {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: <Color>[_accent, _primary],
+          colors: <Color>[_headerDark, _headerDeep],
         ),
       ),
       padding: const EdgeInsets.all(16),
@@ -318,6 +327,81 @@ class _StatusScreenState extends State<StatusScreen> {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  /// True bila data sedang tersambung, dari ppp_status
+  /// ("ppp_connected"). "ppp_disconnected" juga mengandung kata
+  /// "connected" — cek kata putusnya lebih dulu.
+  bool _isConnected(DeviceStatus s) {
+    final ppp = (s.pppStatus ?? '').toLowerCase();
+    if (ppp.contains('disconnected')) return false;
+    if (ppp.contains('connected')) return true;
+    return s.connectionLabel == 'Terhubung';
+  }
+
+  /// Tombol Sambung/Putus (CONNECT_NETWORK / DISCONNECT_NETWORK)
+  /// mengikuti keadaan koneksi saat ini.
+  Widget _connectionButton(
+    BuildContext context,
+    AppState state,
+    DeviceStatus s,
+  ) {
+    final connected = _isConnected(s);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: <Widget>[
+            Icon(
+              connected ? Icons.link : Icons.link_off,
+              color: connected ? _tileIcon : Colors.black45,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                connected
+                    ? 'Data tersambung'
+                    : 'Data terputus',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: _ink,
+                ),
+              ),
+            ),
+            if (connected)
+              OutlinedButton.icon(
+                onPressed: state.busy
+                    ? null
+                    : () async {
+                        final msg = await state.toggleConnection(false);
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(msg)),
+                          );
+                        }
+                      },
+                icon: const Icon(Icons.power_settings_new),
+                label: const Text('Putuskan'),
+              )
+            else
+              FilledButton.icon(
+                onPressed: state.busy
+                    ? null
+                    : () async {
+                        final msg = await state.toggleConnection(true);
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(msg)),
+                          );
+                        }
+                      },
+                icon: const Icon(Icons.power_settings_new),
+                label: const Text('Sambungkan'),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -422,11 +506,12 @@ class _StatusScreenState extends State<StatusScreen> {
   }
 
   Widget _tilesGrid(BuildContext context, AppState state, DeviceStatus s) {
-    final wifiCount = s.stationCount;
-    final lanCount = s.lanStationCount;
-    final clientsTotal = (wifiCount == null && lanCount == null)
-        ? null
-        : (wifiCount ?? 0) + (lanCount ?? 0);
+    // Jumlah klien dari daftar ASLI (panggilan terpisah tanpa
+    // multi_data, diisi refreshStatus) — hitungan dari status
+    // gabungan selalu kosong untuk field array (probe v1.1).
+    final wifiCount = state.wifiStations.length;
+    final lanCount = state.lanStations.length;
+    final clientsTotal = wifiCount + lanCount;
     final capTotal = state.smsCapacity?.total;
     // Baterai: persen asli (battery_vol_percent) hanya bila terisi;
     // selain itu tampilkan teks LEVEL dari battery_pers (skala 0–3,
@@ -458,9 +543,9 @@ class _StatusScreenState extends State<StatusScreen> {
         ),
         _tile(
           icon: Icons.devices,
-          value: clientsTotal?.toString() ?? '—',
+          value: clientsTotal.toString(),
           label: 'Clients online '
-              '(WiFi ${wifiCount ?? '—'} • kabel ${lanCount ?? '—'})',
+              '(WiFi $wifiCount • kabel $lanCount)',
         ),
         _tile(
           icon: Icons.sd_storage,
@@ -519,7 +604,14 @@ class _StatusScreenState extends State<StatusScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
-            Icon(icon, color: _primary, size: 26),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: _tileBg,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: _tileIcon, size: 24),
+            ),
             const SizedBox(height: 8),
             Text(
               value,
@@ -540,9 +632,20 @@ class _StatusScreenState extends State<StatusScreen> {
     );
   }
 
-  Widget _detailCard(BuildContext context, DeviceStatus s) {
+  Widget _detailCard(BuildContext context, AppState state, DeviceStatus s) {
+    final wifi = state.wifiInfo;
     final rows = <List<String>>[
-      <String>['SSID', _or(s.ssid)],
+      // SSID asli dari grup SSID1 — field `ssid` gabungan selalu
+      // kosong (probe v1.1); fallback ke field gabungan bila grup
+      // belum terbaca.
+      <String>['SSID', _or(wifi?.ssid ?? s.ssid)],
+      <String>['Mode keamanan WiFi', _or(wifi?.authMode)],
+      <String>[
+        'SSID disembunyikan',
+        wifi?.ssidHidden == null
+            ? '—'
+            : (wifi!.ssidHidden! ? 'Ya' : 'Tidak'),
+      ],
       <String>['IP LAN', _or(s.lanIp)],
       <String>['Status koneksi', _or(s.connectionLabel)],
       <String>[
@@ -566,13 +669,16 @@ class _StatusScreenState extends State<StatusScreen> {
       ],
       <String>[
         'Perangkat nirkabel',
-        s.stationCount?.toString() ?? '—',
+        state.wifiStations.length.toString(),
       ],
       <String>[
         'Perangkat kabel',
-        s.lanStationCount?.toString() ?? '—',
+        state.lanStations.length.toString(),
       ],
-      <String>['Batas akses maksimum', _or(s.maxAccessNum)],
+      <String>[
+        'Batas akses maksimum',
+        _or(wifi?.maxStationNum ?? s.maxAccessNum),
+      ],
     ];
     return Card(
       child: Padding(
@@ -590,6 +696,62 @@ class _StatusScreenState extends State<StatusScreen> {
                 ),
               )
               .toList(),
+        ),
+      ),
+    );
+  }
+
+  /// Daftar perangkat terhubung (dari panggilan station_list /
+  /// lan_station_list terpisah): nama host, IP, MAC, dan tipe.
+  Widget _devicesCard(BuildContext context, AppState state) {
+    final all = <({ConnectedDevice d, bool isWifi})>[
+      for (final d in state.wifiStations) (d: d, isWifi: true),
+      for (final d in state.lanStations) (d: d, isWifi: false),
+    ];
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 8, 16, 4),
+              child: Text(
+                'Perangkat Terhubung',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: _ink,
+                ),
+              ),
+            ),
+            if (all.isEmpty)
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 4, 16, 12),
+                child: Text(
+                  'Tidak ada perangkat terbaca saat ini.',
+                  style: TextStyle(color: Colors.black54),
+                ),
+              )
+            else
+              for (final e in all)
+                ListTile(
+                  dense: true,
+                  leading: Icon(
+                    e.isWifi ? Icons.wifi : Icons.cable,
+                    color: _tileIcon,
+                  ),
+                  title: Text(e.d.displayName),
+                  subtitle: Text(
+                    <String>[
+                      if (e.d.ipAddr.isNotEmpty) e.d.ipAddr,
+                      if (e.d.macAddr.isNotEmpty) e.d.macAddr,
+                      e.isWifi ? 'WiFi' : 'Kabel',
+                      if (e.d.connectTime != null)
+                        'tersambung ${e.d.connectTime}',
+                    ].join(' • '),
+                  ),
+                ),
+          ],
         ),
       ),
     );
@@ -631,7 +793,7 @@ class _RingPainter extends CustomPainter {
     final rect = Rect.fromCircle(center: center, radius: radius);
 
     final bg = Paint()
-      ..color = const Color(0xFFD9EEF9)
+      ..color = const Color(0xFFEAE4E8)
       ..style = PaintingStyle.stroke
       ..strokeWidth = stroke;
     canvas.drawCircle(center, radius, bg);
