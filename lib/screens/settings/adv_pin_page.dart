@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../app_state.dart';
+import '../../friendly_error.dart';
 import '../../settings_models.dart';
 import '../../theme.dart';
 import '../../widgets.dart';
@@ -43,7 +44,7 @@ class _AdvPinPageState extends State<AdvPinPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = 'Gagal memuat status PIN: $e';
+        _error = friendlyError(e);
         _loading = false;
       });
     }

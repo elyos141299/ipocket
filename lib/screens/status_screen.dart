@@ -238,7 +238,7 @@ class _StatusScreenState extends State<StatusScreen> {
             ),
             const SizedBox(height: 44),
             const Text(
-              'v3.1.1',
+              'v3.2',
               textAlign: TextAlign.center,
               style: TextStyle(color: _inkFaint, fontSize: 12),
             ),
@@ -343,9 +343,11 @@ class _StatusScreenState extends State<StatusScreen> {
       // v3.1: baris teks "Diperbarui otomatis tiap 5 detik" +
       // tombol Segarkan DIHAPUS atas permintaan user — diganti
       // indikator LIVE ringkas (titik hijau berdenyut + "LIVE").
-      const Row(
+      // v3.2: indikator yang sama berubah jadi OFFLINE (titik
+      // merah redup, tanpa denyut) saat poll terakhir gagal.
+      Row(
         children: <Widget>[
-          _LiveIndicator(),
+          _LiveIndicator(offline: state.statusOffline),
         ],
       ),
       const SizedBox(height: 12),
@@ -354,22 +356,31 @@ class _StatusScreenState extends State<StatusScreen> {
       widgets.add(const LinearProgressIndicator());
       widgets.add(const SizedBox(height: 12));
     }
-    if (state.lastError != null) {
-      widgets.add(Text(
-        state.lastError!,
-        style: TextStyle(color: Theme.of(context).colorScheme.error),
-      ));
-      widgets.add(const SizedBox(height: 8));
+    // v3.2: blok teks error mentah raksasa DIHAPUS total —
+    // diganti banner ringkas berikon berisi pesan ramah +
+    // tombol Coba Lagi. Data terakhir (kartu & gauge di bawah)
+    // tetap tampil apa adanya.
+    if (state.statusError != null) {
+      widgets.add(_offlineBanner(context, state));
+      widgets.add(const SizedBox(height: 12));
     }
     if (s == null) {
-      widgets.add(const Text('Memuat status perangkat…'));
+      widgets.add(Text(
+        state.statusError != null
+            ? 'Status belum bisa dimuat — periksa koneksi ke '
+                'WiFi iPocket, lalu coba lagi.'
+            : 'Memuat status perangkat…',
+      ));
     } else {
       widgets.addAll(<Widget>[
+        // v3.2: saklar Data Internet MENONJOL tepat di bawah
+        // kartu perangkat, di atas gauge (permintaan user —
+        // tombol Sambung/Putus lama dinilai kurang terlihat).
+        _dataSwitchCard(context, state, s),
+        const SizedBox(height: 12),
         _gaugeCard(context, s),
         const SizedBox(height: 12),
         _statsRow(context, state, s),
-        const SizedBox(height: 12),
-        _connectionButton(context, state, s),
         const SizedBox(height: 12),
         _devicesCard(context, state),
         const SizedBox(height: 12),
@@ -377,6 +388,47 @@ class _StatusScreenState extends State<StatusScreen> {
       ]);
     }
     return widgets;
+  }
+
+  /// Banner offline Beranda v3.2: panel merah lembut bertepi +
+  /// ikon putus + pesan ramah (dari friendlyError lewat
+  /// state.statusError) + tombol "Coba Lagi" yang memicu poll
+  /// status ulang. Menggantikan dump teks exception mentah.
+  Widget _offlineBanner(BuildContext context, AppState state) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.danger.withValues(alpha: 0.12),
+        borderRadius: AppRadius.cardBorder,
+        border: Border.all(
+          color: AppColors.danger.withValues(alpha: 0.45),
+        ),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      child: Row(
+        children: <Widget>[
+          const Icon(
+            Icons.wifi_off,
+            color: AppColors.danger,
+            size: 21,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              state.statusError!,
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 13.5,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: state.busy ? null : () => state.refreshStatus(),
+            child: const Text('Coba Lagi'),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _headerCard(BuildContext context, DeviceStatus? s) {
@@ -447,79 +499,78 @@ class _StatusScreenState extends State<StatusScreen> {
     return s.connectionLabel == 'Terhubung';
   }
 
-  /// Tombol Sambung/Putus (CONNECT_NETWORK / DISCONNECT_NETWORK)
-  /// mengikuti keadaan koneksi saat ini.
-  Widget _connectionButton(
+  /// Kartu saklar Data Internet v3.2 (permintaan user: tombol
+  /// matikan/hidupkan data SIM kurang terlihat di versi lama).
+  /// Baris kartu MENONJOL di atas Beranda: ikon data di kotak
+  /// aksen + label "Data Internet" besar + keterangan keadaan +
+  /// Switch besar di kanan. Wire PERSIS perintah Sambung/Putus
+  /// yang terbukti sejak v1.4 (AppState.toggleConnection →
+  /// CONNECT_NETWORK / DISCONNECT_NETWORK) — tidak diubah.
+  /// Keadaan saklar mengikuti ppp_status dari polling; saat
+  /// offline (poll terakhir gagal) atau sibuk, saklar nonaktif.
+  Widget _dataSwitchCard(
     BuildContext context,
     AppState state,
     DeviceStatus s,
   ) {
     final connected = _isConnected(s);
-    // v3.0: gaya pil outline cyan ala Ookla — label & perilaku
-    // (toggleConnection + snackbar) sama persis seperti v2.0.
-    final pillStyle = OutlinedButton.styleFrom(
-      foregroundColor: _primary,
-      side: const BorderSide(color: _primary, width: 1.4),
-      shape: const StadiumBorder(),
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-    );
+    final offline = state.statusOffline;
+    final enabled = !offline && !state.busy;
     return Container(
       decoration: BoxDecoration(
         color: AppColors.card,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: AppRadius.cardBorder,
         border: Border.all(color: AppColors.border),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
         children: <Widget>[
-          Icon(
-            connected ? Icons.link : Icons.link_off,
+          IconBox(
+            connected ? Icons.signal_cellular_alt : Icons.signal_cellular_off,
             color: connected ? _tileIcon : _inkFaint,
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 14),
           Expanded(
-            child: Text(
-              connected
-                  ? 'Data tersambung'
-                  : 'Data terputus',
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-                color: _ink,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                const Text(
+                  'Data Internet',
+                  style: TextStyle(
+                    color: _ink,
+                    fontSize: 16.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  offline
+                      ? 'Tidak terhubung ke MiFi'
+                      : connected
+                          ? 'Tersambung'
+                          : 'Terputus',
+                  style: const TextStyle(color: _inkSoft, fontSize: 13),
+                ),
+              ],
             ),
           ),
-          if (connected)
-            OutlinedButton.icon(
-              onPressed: state.busy
-                  ? null
-                  : () async {
-                      final msg = await state.toggleConnection(false);
+          Transform.scale(
+            scale: 1.2,
+            child: Switch(
+              value: connected,
+              activeTrackColor: _primary,
+              onChanged: enabled
+                  ? (v) async {
+                      final msg = await state.toggleConnection(v);
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(content: Text(msg)),
                         );
                       }
-                    },
-              icon: const Icon(Icons.power_settings_new),
-              label: const Text('Putuskan'),
-              style: pillStyle,
-            )
-          else
-            OutlinedButton.icon(
-              onPressed: state.busy
-                  ? null
-                  : () async {
-                      final msg = await state.toggleConnection(true);
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(msg)),
-                        );
-                      }
-                    },
-              icon: const Icon(Icons.power_settings_new),
-              label: const Text('Sambungkan'),
-              style: pillStyle,
+                    }
+                  : null,
             ),
+          ),
         ],
       ),
     );
@@ -979,8 +1030,14 @@ class _StatusScreenState extends State<StatusScreen> {
 /// Indikator LIVE Beranda v3.1: titik hijau berdenyut (animasi
 /// fade sederhana, berulang) + teks "LIVE" kecil — menggantikan
 /// baris teks "Diperbarui otomatis…" dan tombol Segarkan.
+/// Indikator keadaan polling Beranda. Online: titik hijau
+/// berdenyut + "LIVE" (v3.1). v3.2: [offline] true (poll
+/// terakhir gagal) → titik merah redup STATIS + "OFFLINE";
+/// kembali LIVE otomatis saat poll berhasil lagi.
 class _LiveIndicator extends StatefulWidget {
-  const _LiveIndicator();
+  const _LiveIndicator({this.offline = false});
+
+  final bool offline;
 
   @override
   State<_LiveIndicator> createState() => _LiveIndicatorState();
@@ -996,7 +1053,18 @@ class _LiveIndicatorState extends State<_LiveIndicator>
     _ctrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 850),
-    )..repeat(reverse: true);
+    );
+    if (!widget.offline) _ctrl.repeat(reverse: true);
+  }
+
+  @override
+  void didUpdateWidget(_LiveIndicator oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.offline && _ctrl.isAnimating) {
+      _ctrl.stop();
+    } else if (!widget.offline && !_ctrl.isAnimating) {
+      _ctrl.repeat(reverse: true);
+    }
   }
 
   @override
@@ -1007,6 +1075,31 @@ class _LiveIndicatorState extends State<_LiveIndicator>
 
   @override
   Widget build(BuildContext context) {
+    if (widget.offline) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Container(
+            width: 9,
+            height: 9,
+            decoration: BoxDecoration(
+              color: AppColors.danger.withValues(alpha: 0.75),
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 7),
+          Text(
+            'OFFLINE',
+            style: TextStyle(
+              color: AppColors.danger.withValues(alpha: 0.85),
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.6,
+            ),
+          ),
+        ],
+      );
+    }
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[

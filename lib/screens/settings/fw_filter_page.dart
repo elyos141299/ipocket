@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../app_state.dart';
+import '../../friendly_error.dart';
 import '../../settings_models.dart';
 import '../../theme.dart';
 import '../../widgets.dart';
@@ -47,7 +48,7 @@ class _FwFilterPageState extends State<FwFilterPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = 'Gagal memuat Filter Port: $e';
+        _error = friendlyError(e);
         _loading = false;
       });
     }
@@ -70,7 +71,7 @@ class _FwFilterPageState extends State<FwFilterPage> {
       }
     } catch (e) {
       if (!mounted) return;
-      showSnack(context, 'Gagal menghubungi MiFi: $e');
+      showSnack(context, friendlyError(e));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -95,7 +96,7 @@ class _FwFilterPageState extends State<FwFilterPage> {
       if (r.ok) _load();
     } catch (e) {
       if (!mounted) return;
-      showSnack(context, 'Gagal menghubungi MiFi: $e');
+      showSnack(context, friendlyError(e));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -250,7 +251,7 @@ class _FilterAddPageState extends State<_FilterAddPage> {
       if (r.ok) Navigator.of(context).pop(true);
     } catch (e) {
       if (!mounted) return;
-      showSnack(context, 'Gagal menghubungi MiFi: $e');
+      showSnack(context, friendlyError(e));
     } finally {
       if (mounted) setState(() => _saving = false);
     }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../app_state.dart';
+import '../../friendly_error.dart';
 import '../../settings_models.dart';
 import '../../theme.dart';
 import '../../widgets.dart';
@@ -44,7 +45,7 @@ class _FwPortMapPageState extends State<FwPortMapPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = 'Gagal memuat Port Mapping: $e';
+        _error = friendlyError(e);
         _loading = false;
       });
     }
@@ -62,7 +63,7 @@ class _FwPortMapPageState extends State<FwPortMapPage> {
       }
     } catch (e) {
       if (!mounted) return;
-      showSnack(context, 'Gagal menghubungi MiFi: $e');
+      showSnack(context, friendlyError(e));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -88,7 +89,7 @@ class _FwPortMapPageState extends State<FwPortMapPage> {
       if (r.ok) _load();
     } catch (e) {
       if (!mounted) return;
-      showSnack(context, 'Gagal menghubungi MiFi: $e');
+      showSnack(context, friendlyError(e));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -183,7 +184,7 @@ class _FwPortMapPageState extends State<FwPortMapPage> {
       if (r.ok) _load();
     } catch (e) {
       if (!mounted) return;
-      showSnack(context, 'Gagal menghubungi MiFi: $e');
+      showSnack(context, friendlyError(e));
     } finally {
       ipCtl.dispose();
       fromCtl.dispose();

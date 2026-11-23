@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../app_state.dart';
+import '../../friendly_error.dart';
 import '../../settings_models.dart';
 import '../../theme.dart';
 import '../../widgets.dart';
@@ -58,7 +59,7 @@ class _WifiAdvancedPageState extends State<WifiAdvancedPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = 'Gagal memuat Wi-Fi Lanjutan: $e';
+        _error = friendlyError(e);
         _loading = false;
       });
     }
@@ -88,7 +89,7 @@ class _WifiAdvancedPageState extends State<WifiAdvancedPage> {
       if (r.ok) _load();
     } catch (e) {
       if (!mounted) return;
-      showSnack(context, 'Tidak ada respons utuh ($e) — wajar bila Wi-Fi langsung menyambung ulang.');
+      showSnack(context, 'Tidak ada respons utuh — wajar bila Wi-Fi langsung menyambung ulang.');
     } finally {
       if (mounted) setState(() => _saving = false);
     }

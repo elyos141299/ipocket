@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../app_state.dart';
+import '../../friendly_error.dart';
 import '../../settings_models.dart';
 import '../../theme.dart';
 import '../../widgets.dart';
@@ -85,7 +86,7 @@ class _WifiMainPageState extends State<WifiMainPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = 'Gagal memuat pengaturan Wi-Fi: $e';
+        _error = friendlyError(e);
         _loading = false;
       });
     }
@@ -119,8 +120,8 @@ class _WifiMainPageState extends State<WifiMainPage> {
       showSnack(
         context,
         on
-            ? 'Gagal menghubungi MiFi: $e'
-            : 'Tidak ada respons utuh ($e) — wajar bila Wi-Fi '
+            ? friendlyError(e)
+            : 'Tidak ada respons utuh — wajar bila Wi-Fi '
                 'langsung mati dan koneksi putus.',
       );
       if (!on) setState(() => _wifiOn = false);
@@ -171,7 +172,7 @@ class _WifiMainPageState extends State<WifiMainPage> {
       if (!mounted) return;
       showSnack(
         context,
-        'Tidak ada respons utuh ($e) — wajar bila Wi-Fi langsung '
+        'Tidak ada respons utuh — wajar bila Wi-Fi langsung '
         'menyambung ulang. Sambungkan kembali ke Wi-Fi lalu periksa.',
       );
     } finally {

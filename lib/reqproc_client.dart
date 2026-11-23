@@ -3,54 +3,80 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import 'friendly_error.dart';
 import 'models.dart';
 
-/// Satu catatan request/respons untuk layar Diagnostik.
+/// Satu catatan ringkas untuk layar Diagnostik (v3.2, tahap
+/// final): SATU baris pendek — waktu + aksi + hasil. Log TIDAK
+/// lagi menyimpan URL lengkap, query string, badan respons
+/// mentah, atau teks exception (dump mentah itulah keluhan user
+/// dari uji v3.1.1).
 class DiagEntry {
   DiagEntry({
     required this.time,
-    required this.method,
-    required this.url,
-    required this.statusCode,
-    required this.body,
-    this.note,
+    required this.action,
+    required this.result,
   });
 
   final DateTime time;
-  final String method;
-  final String url;
-  final int? statusCode;
-  final String body;
-  final String? note;
+
+  /// Aksi pendek, mis. "GET status", "POST SET_WIFI_SSID1_SETTINGS",
+  /// "CATATAN".
+  final String action;
+
+  /// Hasil pendek, mis. "OK", "result=success",
+  /// "gagal: jaringan tidak terjangkau", "gagal: timeout".
+  final String result;
 
   String get formatted {
     String two(int v) => v.toString().padLeft(2, '0');
     final jam = '${two(time.hour)}:${two(time.minute)}:${two(time.second)}';
-    final status = statusCode == null ? '(tanpa respons)' : 'HTTP $statusCode';
-    final catatan = note == null ? '' : '\nCatatan: $note';
-    return '[$jam] $method $url\nStatus: $status$catatan\nIsi:\n$body';
+    return '[$jam] $action — $result';
   }
 }
 
-/// Log diagnostik bersama — semua request klien tercatat di sini.
+/// Log diagnostik bersama — semua request klien tercatat di sini
+/// sebagai ringkasan satu baris (disanitasi terpusat di [add]).
 class DiagnosticsLog {
   final List<DiagEntry> entries = <DiagEntry>[];
 
-  void add(DiagEntry entry) => entries.add(entry);
+  /// Batas panjang satu entri log (karakter) — entri wajar untuk
+  /// ringkasan satu baris.
+  static const int maxLineLength = 240;
+
+  /// Sanitasi satu baris log: URL utuh dibuang (menyisakan
+  /// penanda), semua whitespace dilipat jadi satu spasi, lalu
+  /// dipotong ke [maxLineLength]. Jaring pengaman terakhir agar
+  /// tidak ada teks mentah panjang yang lolos ke log dari
+  /// pemanggil mana pun.
+  static String _clean(String s) {
+    var t = s.replaceAll(RegExp(r'https?://\S+'), '(alamat perangkat)');
+    t = t.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (t.length > maxLineLength) {
+      t = '${t.substring(0, maxLineLength)}…';
+    }
+    return t;
+  }
+
+  void add(DiagEntry entry) {
+    entries.add(DiagEntry(
+      time: entry.time,
+      action: _clean(entry.action),
+      result: _clean(entry.result),
+    ));
+  }
 
   void addNote(String text) {
-    entries.add(DiagEntry(
+    add(DiagEntry(
       time: DateTime.now(),
-      method: 'CATATAN',
-      url: '-',
-      statusCode: null,
-      body: text,
+      action: 'CATATAN',
+      result: text,
     ));
   }
 
   void clear() => entries.clear();
 
-  String get asText => entries.map((e) => e.formatted).join('\n\n');
+  String get asText => entries.map((e) => e.formatted).join('\n');
 }
 
 /// Error HTTP non-200 dari perangkat.
@@ -176,9 +202,25 @@ class ReqprocClient {
 
   void clearSession() => _cookies.clear();
 
-  static String _truncate(String s, [int max = 2000]) => s.length <= max
-      ? s
-      : '${s.substring(0, max)}\n…(dipotong, total ${s.length} karakter)';
+  /// Label aksi pendek untuk log ringkas v3.2: POST memakai
+  /// goformId ("POST SET_WIFI_SSID1_SETTINGS"); GET memakai cmd
+  /// pertama ("GET station_list"), dan panggilan banyak field
+  /// sekaligus diringkas jadi "GET status".
+  static String _actionLabel(
+    String method,
+    Uri uri,
+    Map<String, String>? formBody,
+  ) {
+    if (method == 'POST') {
+      final id = formBody?['goformId'];
+      return id == null ? 'POST reqproc' : 'POST $id';
+    }
+    final cmd = uri.queryParameters['cmd'] ?? '';
+    if (cmd.isEmpty) return 'GET data';
+    final parts = cmd.split(',');
+    if (parts.length > 5) return 'GET status';
+    return 'GET ${parts.first}';
+  }
 
   /// Simpan cookie dari header `set-cookie` (bisa gabungan beberapa cookie).
   void _storeCookies(http.Response res) {
@@ -203,6 +245,10 @@ class ReqprocClient {
     Map<String, String>? formBody,
     String? note,
   }) async {
+    // v3.2: log hanya mencatat ringkasan satu baris (aksi +
+    // hasil pendek) — URL lengkap, query string, badan respons
+    // mentah, dan teks exception TIDAK lagi masuk log.
+    final action = _actionLabel(method, uri, formBody);
     http.Response res;
     try {
       if (method == 'GET') {
@@ -217,34 +263,39 @@ class ReqprocClient {
     } catch (e) {
       log.add(DiagEntry(
         time: DateTime.now(),
-        method: method,
-        url: uri.toString(),
-        statusCode: null,
-        body: 'ERROR: $e',
-        note: note,
+        action: action,
+        result: 'gagal: ${shortErrorReason(e)}',
       ));
       rethrow;
     }
     _storeCookies(res);
-    log.add(DiagEntry(
-      time: DateTime.now(),
-      method: method,
-      url: uri.toString(),
-      statusCode: res.statusCode,
-      body: _truncate(res.body),
-      note: note,
-    ));
     if (res.statusCode != 200) {
+      log.add(DiagEntry(
+        time: DateTime.now(),
+        action: action,
+        result: 'gagal: HTTP ${res.statusCode}',
+      ));
       throw ReqprocHttpException(res.statusCode, res.body);
     }
+    Map<String, dynamic> decodedMap;
     try {
       final decoded = jsonDecode(res.body);
-      if (decoded is Map<String, dynamic>) return decoded;
-      return <String, dynamic>{'_raw': decoded};
+      if (decoded is Map<String, dynamic>) {
+        decodedMap = decoded;
+      } else {
+        decodedMap = <String, dynamic>{'_raw': decoded};
+      }
     } on FormatException {
-      // Respons bukan JSON — kembalikan apa adanya untuk diagnostik.
-      return <String, dynamic>{'_raw_text': res.body};
+      // Respons bukan JSON — kembalikan apa adanya untuk pemanggil.
+      decodedMap = <String, dynamic>{'_raw_text': res.body};
     }
+    final r = decodedMap['result'];
+    log.add(DiagEntry(
+      time: DateTime.now(),
+      action: action,
+      result: r == null ? 'OK' : 'result=$r',
+    ));
+    return decodedMap;
   }
 
   /// GET /reqproc/proc_get dengan parameter bebas (objek berisi cmd).
@@ -420,12 +471,8 @@ class ReqprocClient {
   /// Mengembalikan Map respons mentah (result "success" = terkirim).
   Future<Map<String, dynamic>> sendSms(String number, String message) {
     log.addNote(
-      'SEND_SMS: sms_time mengikuti getCurrentTimeString() '
-      'lib.js persis — "yy;MM;dd;hh;mm;ss;" + zona polos tanpa '
-      'zero-pad (WIB "+7") — PASTI, bukan asumsi (definisi '
-      'ketemu di lib.js; addendum API-CONTRACT 23 Nov ±15:00). '
-      'Asumsi tersisa di jalur SMS lain: pemetaan save_time '
-      'SET_MESSAGE_CENTER.',
+      'SEND_SMS: format sms_time mengikuti lib.js WebUI '
+      '(zona polos tanpa zero-pad, WIB "+7").',
     );
     return procPost(
       <String, String>{
@@ -614,7 +661,7 @@ class ReqprocClient {
       try {
         await procGet(p.params, note: 'Probe baterai: ${p.label}');
       } catch (e) {
-        log.addNote('Probe baterai $step gagal: $e');
+        log.addNote('Probe baterai $step gagal: ${shortErrorReason(e)}');
       }
     }
     try {
@@ -623,7 +670,7 @@ class ReqprocClient {
         note: 'Probe bulanan: data_counter TANPA multi_data',
       );
     } catch (e) {
-      log.addNote('Probe data_counter (tanpa multi_data) gagal: $e');
+      log.addNote('Probe data_counter (tanpa multi_data) gagal: ${shortErrorReason(e)}');
     }
     try {
       await procGet(
@@ -631,7 +678,7 @@ class ReqprocClient {
         note: 'Probe bulanan: traffic_alert_info',
       );
     } catch (e) {
-      log.addNote('Probe traffic_alert_info gagal: $e');
+      log.addNote('Probe traffic_alert_info gagal: ${shortErrorReason(e)}');
     }
     log.addNote('=== PROBE BATERAI & BULANAN SELESAI ===');
   }
@@ -686,7 +733,7 @@ class ReqprocClient {
         'battery_pers=${pers == null ? '(tidak ada di respons)' : '"$pers"'}',
       );
     } catch (e) {
-      log.addNote('Probe persen baterai gagal: $e');
+      log.addNote('Probe persen baterai gagal: ${shortErrorReason(e)}');
     }
     log.addNote('=== PROBE PERSEN BATERAI SELESAI ===');
   }
@@ -750,7 +797,7 @@ class ReqprocClient {
       try {
         await procGet(p.params, note: 'Probe field kosong: ${p.label}');
       } catch (e) {
-        log.addNote('Probe $step gagal: $e');
+        log.addNote('Probe $step gagal: ${shortErrorReason(e)}');
       }
     }
     log.addNote('=== PROBE FIELD KOSONG SELESAI ===');
@@ -771,18 +818,18 @@ class ReqprocClient {
         '(result=${r.rawResult}, outcome=${r.outcome.name})',
       );
     } catch (e) {
-      log.addNote('Login reqproc error: $e');
+      log.addNote('Login reqproc gagal: ${shortErrorReason(e)}');
     }
     try {
       await getStatus();
     } catch (e) {
-      log.addNote('Status reqproc gagal: $e');
+      log.addNote('Status reqproc gagal: ${shortErrorReason(e)}');
     }
     try {
       final list = await getSmsList();
       log.addNote('SMS terbaca: ${list.length} pesan.');
     } catch (e) {
-      log.addNote('SMS sms_data_total gagal: $e');
+      log.addNote('SMS sms_data_total gagal: ${shortErrorReason(e)}');
     }
     try {
       final cap = await getSmsCapacity();
@@ -791,7 +838,7 @@ class ReqprocClient {
         '${cap.total ?? '—'}.',
       );
     } catch (e) {
-      log.addNote('SMS sms_capacity_info gagal: $e');
+      log.addNote('SMS sms_capacity_info gagal: ${shortErrorReason(e)}');
     }
     log.addNote('=== TES LENGKAP (REQPROC) SELESAI ===');
     return loginOk;

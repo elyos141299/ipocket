@@ -1,5 +1,6 @@
 import 'package:http/http.dart' as http;
 
+import 'friendly_error.dart';
 import 'reqproc_client.dart';
 
 /// Mode Penemuan API (v0.2).
@@ -30,11 +31,6 @@ class ApiDiscovery {
   String get _base => 'http://$gateway';
 
   Map<String, String> get _headers => <String, String>{'Referer': '$_base/'};
-
-  /// Batas potong isi per entri log — sama seperti klien ZTE (±2000).
-  static String _truncate(String s, [int max = 2000]) => s.length <= max
-      ? s
-      : '${s.substring(0, max)}\n…(dipotong, total ${s.length} karakter)';
 
   /// Kata kunci penanda kandidat endpoint (sesuai spesifikasi v0.2).
   static const List<String> _endpointKeywords = <String>[
@@ -72,8 +68,9 @@ class ApiDiscovery {
     r'"([^"\r\n]{1,400})"' + r"|'([^'\r\n]{1,400})'",
   );
 
-  /// GET mentah: tidak melempar pada status non-200; selalu tercatat
-  /// ke log (status + ukuran di catatan, isi dipotong ±2000 karakter).
+  /// GET mentah: tidak melempar pada status non-200; tercatat ke
+  /// log sebagai ringkasan satu baris v3.2 (path saja + status +
+  /// ukuran — tanpa URL lengkap & tanpa isi mentah).
   /// Mengembalikan null hanya bila request gagal total (jaringan).
   Future<http.Response?> _getRaw(
     Uri uri, {
@@ -84,49 +81,30 @@ class ApiDiscovery {
       final res = await _http.get(uri, headers: _headers).timeout(timeout);
       log.add(DiagEntry(
         time: DateTime.now(),
-        method: 'GET',
-        url: uri.toString(),
-        statusCode: res.statusCode,
-        body: _truncate(res.body),
-        note: '$note — ${res.bodyBytes.length} byte',
+        action: 'GET ${uri.path}',
+        result: 'HTTP ${res.statusCode} · ${res.bodyBytes.length} byte',
       ));
       return res;
     } catch (e) {
       log.add(DiagEntry(
         time: DateTime.now(),
-        method: 'GET',
-        url: uri.toString(),
-        statusCode: null,
-        body: 'ERROR: $e',
-        note: note,
+        action: 'GET ${uri.path}',
+        result: 'gagal: ${shortErrorReason(e)}',
       ));
       return null;
     }
   }
 
-  /// Catat teks panjang ke log dalam potongan ±1900 karakter per entri,
-  /// diusahakan putus di batas baris. Entri pertama dan seterusnya
-  /// memakai [title] yang sama (lanjutan diberi penanda "bagian N").
+  /// Catat daftar teks ke log ringkas v3.2: judul sebagai satu
+  /// entri, lalu tiap baris non-kosong sebagai entri pendeknya
+  /// sendiri (disanitasi terpusat oleh DiagnosticsLog: satu
+  /// baris, URL dibuang, maks 240 karakter).
   void _logChunks(String title, String text) {
-    const limit = 1900;
-    if (text.length <= limit) {
-      log.addNote('$title\n$text');
-      return;
-    }
-    var part = 1;
-    var rest = text;
-    while (rest.isNotEmpty) {
-      var chunk = rest;
-      var advance = rest.length;
-      if (rest.length > limit) {
-        var cut = rest.lastIndexOf('\n', limit);
-        if (cut <= 0) cut = limit;
-        chunk = rest.substring(0, cut);
-        advance = cut + (rest[cut] == '\n' ? 1 : 0);
-      }
-      log.addNote('$title (bagian $part)\n$chunk');
-      part++;
-      rest = rest.substring(advance);
+    log.addNote(title);
+    for (final line in text.split('\n')) {
+      final t = line.trim();
+      if (t.isEmpty || t == '---') continue;
+      log.addNote(t);
     }
   }
 
@@ -233,7 +211,7 @@ class ApiDiscovery {
     } else {
       _logChunks(
         'File JS ditemukan (${jsUrls.length}):',
-        jsUrls.join('\n'),
+        jsUrls.map(_fileName).join('\n'),
       );
     }
 
@@ -836,33 +814,16 @@ class ApiDiscoveryTargeted extends ApiDiscovery {
   /// diburu panjang, jadi jendela konteksnya ±2000 karakter.
   static const int _contextRadiusWide = 2000;
 
-  /// Batas ukuran satu entri log untuk mode ini.
-  static const int _entryLimit = 3500;
-
-  /// Catat [text] ke log dalam potongan ≤[_entryLimit] karakter,
-  /// diusahakan putus di batas baris, dengan penanda "potongan N"
-  /// pada [title]. Isi TIDAK pernah dibuang — hanya dipecah
-  /// antar-entri (berbeda dari _truncate klien yang memotong).
+  /// Catat temuan terarah ke log ringkas v3.2: hanya ringkasan
+  /// (judul + jumlah baris/karakter) — isi JS mentah TIDAK lagi
+  /// disalin ke log Diagnostik.
   void _logTargeted(String title, String text) {
-    if (text.length <= _entryLimit) {
-      log.addNote('$title\n$text');
-      return;
-    }
-    var part = 1;
-    var rest = text;
-    while (rest.isNotEmpty) {
-      var chunk = rest;
-      var advance = rest.length;
-      if (rest.length > _entryLimit) {
-        var cut = rest.lastIndexOf('\n', _entryLimit);
-        if (cut <= 0) cut = _entryLimit;
-        chunk = rest.substring(0, cut);
-        advance = cut + (rest[cut] == '\n' ? 1 : 0);
-      }
-      log.addNote('$title (potongan $part)\n$chunk');
-      part++;
-      rest = rest.substring(advance);
-    }
+    final lines =
+        text.split('\n').where((l) => l.trim().isNotEmpty).length;
+    log.addNote(
+      '$title — $lines baris, ${text.length} karakter '
+      '(ringkasan log v3.2)',
+    );
   }
 
   /// Cari semua kemunculan [keyword] (case-insensitive) di [js],

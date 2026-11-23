@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../app_state.dart';
+import '../../friendly_error.dart';
 import '../../settings_models.dart';
 import '../../theme.dart';
 import '../../widgets.dart';
@@ -65,7 +66,7 @@ class _AdvRouterPageState extends State<AdvRouterPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = 'Gagal memuat Router & DHCP: $e';
+        _error = friendlyError(e);
         _loading = false;
       });
     }
@@ -106,7 +107,7 @@ class _AdvRouterPageState extends State<AdvRouterPage> {
       if (!mounted) return;
       showSnack(
         context,
-        'Tidak ada respons utuh ($e) — wajar bila perangkat '
+        'Tidak ada respons utuh — wajar bila perangkat '
         'langsung mulai ulang. Tunggu ±1 menit lalu sambungkan ulang.',
       );
     } finally {

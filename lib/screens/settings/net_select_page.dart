@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../app_state.dart';
+import '../../friendly_error.dart';
 import '../../settings_models.dart';
 import '../../theme.dart';
 import '../../widgets.dart';
@@ -59,7 +60,7 @@ class _NetSelectPageState extends State<NetSelectPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = 'Gagal memuat info jaringan: $e';
+        _error = friendlyError(e);
         _loading = false;
       });
     }
@@ -93,7 +94,7 @@ class _NetSelectPageState extends State<NetSelectPage> {
       });
     } catch (e) {
       if (!mounted) return;
-      setState(() => _phase = 'Pindai gagal: $e');
+      setState(() => _phase = 'Pindai gagal — ${friendlyError(e)}');
     } finally {
       if (mounted) setState(() => _scanning = false);
     }
@@ -142,7 +143,7 @@ class _NetSelectPageState extends State<NetSelectPage> {
       }
     } catch (e) {
       if (!mounted) return;
-      showSnack(context, 'Gagal menghubungi MiFi: $e');
+      showSnack(context, friendlyError(e));
     } finally {
       if (mounted) setState(() => _selecting = false);
     }

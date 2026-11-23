@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import 'discovery.dart';
+import 'friendly_error.dart';
 import 'models.dart';
 import 'reqproc_client.dart';
 import 'settings_api.dart';
@@ -39,6 +40,16 @@ class AppState extends ChangeNotifier {
 
   bool busy = false;
   String? lastError;
+
+  /// v3.2: keadaan poll status terakhir untuk Beranda — true
+  /// bila poll terakhir GAGAL (indikator jadi OFFLINE + banner
+  /// ringkas tampil; data terakhir tetap ditampilkan).
+  bool statusOffline = false;
+
+  /// Pesan ramah kegagalan status terakhir (dari friendlyError)
+  /// untuk banner Beranda; null bila poll terakhir berhasil.
+  String? statusError;
+
   DeviceStatus? status;
   List<SmsMessage>? smsList;
   SmsCapacity? smsCapacity;
@@ -65,6 +76,8 @@ class AppState extends ChangeNotifier {
     client = ReqprocClient(gateway: gateway, log: log);
     loggedIn = false;
     loginMessage = null;
+    statusOffline = false;
+    statusError = null;
     status = null;
     smsList = null;
     smsCapacity = null;
@@ -110,8 +123,7 @@ class AppState extends ChangeNotifier {
           break;
         case LoginOutcome.failed:
           loggedIn = false;
-          loginMessage = 'Login ditolak perangkat '
-              '(result=${result.rawResult ?? 'tidak dikenal'}). '
+          loginMessage = 'Login ditolak perangkat. '
               'Coba lagi sebentar lagi.';
           break;
       }
@@ -123,7 +135,7 @@ class AppState extends ChangeNotifier {
       loggedIn = false;
       loginMessage = 'Tidak dapat menjangkau MiFi di $gateway. '
           'Pastikan HP terhubung ke WiFi iPocket, lalu coba lagi.';
-      lastError = 'Login error: $e';
+      lastError = friendlyError(e);
     } finally {
       busy = false;
       notifyListeners();
@@ -141,8 +153,15 @@ class AppState extends ChangeNotifier {
       final parsed = DeviceStatus(rawMap);
       _hitungKecepatan(parsed);
       status = parsed;
+      statusOffline = false;
+      statusError = null;
     } catch (e) {
-      lastError = 'Gagal memuat status: $e';
+      // v3.2: pesan ramah saja (tanpa dump exception) + tandai
+      // offline; [status] terakhir SENGAJA dipertahankan agar
+      // Beranda tetap menampilkan data terakhir yang diketahui.
+      statusOffline = true;
+      statusError = friendlyError(e);
+      lastError = statusError;
     }
     try {
       final st = await client.getStations();
@@ -201,7 +220,7 @@ class AppState extends ChangeNotifier {
     try {
       smsList = await client.getSmsList();
     } catch (e) {
-      lastError = 'Gagal memuat SMS: $e';
+      lastError = friendlyError(e);
     }
     try {
       smsCapacity = await client.getSmsCapacity();
@@ -230,10 +249,9 @@ class AppState extends ChangeNotifier {
         await refreshSms();
         return okText;
       }
-      return 'Perangkat menjawab result=${res['result'] ?? 'tidak dikenal'} '
-          '— periksa log Diagnostik.';
+      return 'Perangkat menolak permintaan ini — coba lagi sebentar.';
     } catch (e) {
-      return 'Gagal menghubungi MiFi: $e';
+      return friendlyError(e);
     } finally {
       busy = false;
       notifyListeners();
@@ -318,10 +336,9 @@ class AppState extends ChangeNotifier {
             ? 'Perintah sambung terkirim.'
             : 'Perintah putus terkirim.';
       }
-      return 'Perangkat menjawab result=${res['result'] ?? 'tidak dikenal'} '
-          '— periksa log Diagnostik.';
+      return 'Perangkat menolak permintaan ini — coba lagi sebentar.';
     } catch (e) {
-      return 'Gagal menghubungi MiFi: $e';
+      return friendlyError(e);
     } finally {
       busy = false;
       notifyListeners();
@@ -337,12 +354,12 @@ class AppState extends ChangeNotifier {
     try {
       final res = await client.rebootDevice();
       final r = res['result']?.toString();
-      log.addNote('REBOOT_DEVICE result mentah: ${r ?? '(kosong)'}');
-      return 'Perintah mulai ulang terkirim (result=${r ?? 'kosong'}). '
+      log.addNote('REBOOT_DEVICE terkirim (result=${r ?? 'kosong'})');
+      return 'Perintah mulai ulang terkirim. '
           'MiFi akan boot ulang — tunggu ±1 menit lalu masuk lagi '
           'bila sesi terputus.';
     } catch (e) {
-      return 'Tidak ada respons utuh dari MiFi ($e) — wajar bila '
+      return 'Tidak ada respons utuh dari MiFi — wajar bila '
           'perangkat langsung mulai ulang. Tunggu ±1 menit lalu '
           'masuk lagi.';
     } finally {
@@ -358,15 +375,14 @@ class AppState extends ChangeNotifier {
     busy = true;
     notifyListeners();
     try {
-      final res = await api.turnOffDevice();
-      final r = res['result']?.toString();
+      await api.turnOffDevice();
       loggedIn = false;
-      return 'Perintah matikan terkirim (result=${r ?? 'kosong'}). '
+      return 'Perintah matikan terkirim. '
           'MiFi akan mati — nyalakan lagi manual dengan tombol '
           'power bila ingin memakainya.';
     } catch (e) {
       loggedIn = false;
-      return 'Tidak ada respons utuh dari MiFi ($e) — wajar bila '
+      return 'Tidak ada respons utuh dari MiFi — wajar bila '
           'perangkat langsung mati. Periksa lampu MiFi-mu.';
     } finally {
       busy = false;
@@ -381,16 +397,15 @@ class AppState extends ChangeNotifier {
     busy = true;
     notifyListeners();
     try {
-      final res = await api.restoreFactory();
-      final r = res['result']?.toString();
+      await api.restoreFactory();
       loggedIn = false;
       client.clearSession();
-      return 'Perintah setel ulang pabrik terkirim '
-          '(result=${r ?? 'kosong'}). MiFi kembali ke pengaturan '
+      return 'Perintah setel ulang pabrik terkirim. '
+          'MiFi kembali ke pengaturan '
           'awal dan mulai ulang — sambungkan ulang ke WiFi '
           'bawaan perangkat, lalu masuk dengan sandi awal.';
     } catch (e) {
-      return 'Tidak ada respons utuh dari MiFi ($e) — wajar bila '
+      return 'Tidak ada respons utuh dari MiFi — wajar bila '
           'perangkat langsung mulai ulang untuk reset. Tunggu '
           '±1 menit lalu sambungkan ulang ke WiFi bawaan.';
     } finally {
@@ -418,7 +433,7 @@ class AppState extends ChangeNotifier {
       return 'Perangkat menolak ganti sandi — periksa kata sandi '
           'lamamu, lalu coba lagi.';
     } catch (e) {
-      return 'Gagal menghubungi MiFi: $e';
+      return friendlyError(e);
     } finally {
       busy = false;
       notifyListeners();

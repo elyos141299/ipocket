@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../app_state.dart';
+import '../../friendly_error.dart';
 import '../../settings_models.dart';
 import '../../theme.dart';
 import '../../widgets.dart';
@@ -62,7 +63,7 @@ class _AdvFotaPageState extends State<AdvFotaPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = 'Gagal memuat info firmware: $e';
+        _error = friendlyError(e);
         _loading = false;
       });
     }
@@ -81,7 +82,7 @@ class _AdvFotaPageState extends State<AdvFotaPage> {
       showSnack(context, 'Pemeriksaan selesai: ${st.newVersionLabel}.');
     } catch (e) {
       if (!mounted) return;
-      showSnack(context, 'Gagal menghubungi MiFi: $e');
+      showSnack(context, friendlyError(e));
     } finally {
       if (mounted) setState(() => _checking = false);
     }
@@ -100,7 +101,7 @@ class _AdvFotaPageState extends State<AdvFotaPage> {
       if (r.ok) _load();
     } catch (e) {
       if (!mounted) return;
-      showSnack(context, 'Gagal menghubungi MiFi: $e');
+      showSnack(context, friendlyError(e));
     } finally {
       if (mounted) setState(() => _saving = false);
     }

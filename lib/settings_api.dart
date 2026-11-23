@@ -53,8 +53,9 @@ class SettingsApi {
     return PostResult(
       ok: false,
       rawResult: r,
-      message: 'Perangkat menjawab result=${r ?? 'tidak dikenal'} — '
-          'pengaturan mungkin tidak diterapkan. Periksa log Diagnostik.',
+      // v3.2: pesan gagal ramah tanpa nilai result mentah.
+      message: 'Perangkat menolak pengaturan ini — '
+          'pengaturan mungkin tidak diterapkan. Coba lagi sebentar.',
     );
   }
 

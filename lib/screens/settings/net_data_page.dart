@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../app_state.dart';
+import '../../friendly_error.dart';
 import '../../settings_models.dart';
 import '../../theme.dart';
 import '../../widgets.dart';
@@ -59,7 +60,7 @@ class _NetDataPageState extends State<NetDataPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = 'Gagal memuat Manajemen Data: $e';
+        _error = friendlyError(e);
         _loading = false;
       });
     }
@@ -127,7 +128,7 @@ class _NetDataPageState extends State<NetDataPage> {
       if (r.ok) _load();
     } catch (e) {
       if (!mounted) return;
-      showSnack(context, 'Gagal menghubungi MiFi: $e');
+      showSnack(context, friendlyError(e));
     } finally {
       if (mounted) setState(() => _saving = false);
     }

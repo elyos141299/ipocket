@@ -4,9 +4,12 @@ import 'package:flutter/services.dart';
 import '../app_state.dart';
 import '../theme.dart';
 
-/// Layar Diagnostik: catatan semua request aplikasi (URL lengkap,
-/// status HTTP, badan respons mentah dipotong ±2000 karakter) dalam
-/// teks monospace yang bisa disalin/discreenshot untuk verifikasi API.
+/// Layar Diagnostik: catatan ringkas semua request aplikasi —
+/// sejak v3.2 SATU baris per request (waktu + aksi + hasil
+/// pendek, mis. "GET status — OK", "POST SET_WIFI_SSID1_SETTINGS
+/// — result=success", "gagal: jaringan tidak terjangkau"). URL
+/// lengkap, query string, badan respons mentah, dan teks
+/// exception TIDAK lagi dicatat. Teks monospace, bisa disalin.
 class DiagnosticsScreen extends StatelessWidget {
   const DiagnosticsScreen({super.key});
 

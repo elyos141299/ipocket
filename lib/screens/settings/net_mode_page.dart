@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../app_state.dart';
+import '../../friendly_error.dart';
 import '../../settings_models.dart';
 import '../../theme.dart';
 import '../../widgets.dart';
@@ -50,7 +51,7 @@ class _NetModePageState extends State<NetModePage> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = 'Gagal memuat Mode Koneksi: $e';
+        _error = friendlyError(e);
         _loading = false;
       });
     }
@@ -66,7 +67,7 @@ class _NetModePageState extends State<NetModePage> {
       if (r.ok) _load();
     } catch (e) {
       if (!mounted) return;
-      showSnack(context, 'Gagal menghubungi MiFi: $e');
+      showSnack(context, friendlyError(e));
     } finally {
       if (mounted) setState(() => _saving = false);
     }

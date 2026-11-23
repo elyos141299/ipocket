@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../app_state.dart';
+import '../../friendly_error.dart';
 import '../../theme.dart';
 import '../../widgets.dart';
 
@@ -42,7 +43,7 @@ class _FwUrlPageState extends State<FwUrlPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = 'Gagal memuat Filter URL: $e';
+        _error = friendlyError(e);
         _loading = false;
       });
     }
@@ -82,7 +83,7 @@ class _FwUrlPageState extends State<FwUrlPage> {
       if (r.ok) _load();
     } catch (e) {
       if (!mounted) return;
-      showSnack(context, 'Gagal menghubungi MiFi: $e');
+      showSnack(context, friendlyError(e));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -105,7 +106,7 @@ class _FwUrlPageState extends State<FwUrlPage> {
       if (r.ok) _load();
     } catch (e) {
       if (!mounted) return;
-      showSnack(context, 'Gagal menghubungi MiFi: $e');
+      showSnack(context, friendlyError(e));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
