@@ -135,13 +135,13 @@ ThemeData buildAppTheme() {
     cardColor: AppColors.card,
     dividerColor: AppColors.divider,
     useMaterial3: true,
-    appBarTheme: const AppBarThemeData(
+    appBarTheme: const AppBarTheme(
       backgroundColor: AppColors.bg,
       foregroundColor: AppColors.textPrimary,
       elevation: 0,
       centerTitle: false,
     ),
-    cardTheme: const CardThemeData(
+    cardTheme: const CardTheme(
       color: AppColors.card,
       elevation: 0,
       margin: EdgeInsets.zero,
