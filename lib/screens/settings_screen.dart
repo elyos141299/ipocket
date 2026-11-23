@@ -21,20 +21,29 @@ import 'settings/wifi_power_page.dart';
 import 'settings/wifi_quick_page.dart';
 import 'settings/wifi_wps_page.dart';
 
-/// Tab Pengaturan v2.0 — HUB bergaya Settings iPhone: grup-grup
-/// berisi baris ikon + judul + chevron; tiap baris membuka
-/// sub-halaman sendiri. Isi grup mengikuti paritas WebUI
-/// (Gelombang B/C/D, FULL-SPEC-BCD.md):
-/// Wi-Fi, Jaringan, Perangkat Terhubung, Lanjutan, Sistem.
-/// Pengaturan aplikasi (gateway) tetap di sini seperti sebelumnya.
-class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key});
-
-  @override
-  State<SettingsScreen> createState() => _SettingsScreenState();
+void _openPage(BuildContext context, Widget page) {
+  Navigator.of(context).push(
+    MaterialPageRoute<void>(builder: (_) => page),
+  );
 }
 
-class _SettingsScreenState extends State<SettingsScreen> {
+/// Tab Tools v3.0 (dulu tab "Pengaturan" v2.0) — meniru struktur
+/// tpMiFi: grid ikon 4 kolom menuju grup-grup pengaturan.
+/// Isi & perilaku sub-halamannya IDENTIK v2.0.2 (paritas WebUI
+/// Gelombang B/C/D); yang berubah hanya kulit & tata letak.
+/// Tile SMS / Diagnostik melompat ke tab yang bersangkutan lewat
+/// [onJumpToTab] dari AppShell (indeks tab: 2 = SMS, 3 =
+/// Diagnostik). Pengaturan aplikasi (gateway) tetap di bawah.
+class ToolsScreen extends StatefulWidget {
+  const ToolsScreen({super.key, this.onJumpToTab});
+
+  final ValueChanged<int>? onJumpToTab;
+
+  @override
+  State<ToolsScreen> createState() => _ToolsScreenState();
+}
+
+class _ToolsScreenState extends State<ToolsScreen> {
   late final TextEditingController _gwController;
 
   @override
@@ -47,12 +56,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void dispose() {
     _gwController.dispose();
     super.dispose();
-  }
-
-  void _open(Widget page) {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => page),
-    );
   }
 
   @override
@@ -74,7 +77,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       SizedBox(width: AppSpace.md),
                       Expanded(
                         child: Text(
-                          'Masuk dulu di tab Status untuk membuka '
+                          'Masuk dulu di tab Beranda untuk membuka '
                           'pengaturan perangkat.',
                           style: AppText.rowSubtitle,
                         ),
@@ -83,130 +86,55 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 ),
               ),
-            const SectionLabel('Wi-Fi', top: AppSpace.sm),
-            HubGroup(
+            const SectionLabel('Tools', top: AppSpace.sm),
+            GridView.count(
+              crossAxisCount: 4,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              mainAxisSpacing: 14,
+              crossAxisSpacing: 10,
+              childAspectRatio: 0.82,
               children: <Widget>[
-                HubRow(
-                  icon: Icons.rocket_launch_outlined,
-                  title: 'Pengaturan Cepat',
-                  subtitle: 'Wizard APN + Wi-Fi sekali jalan',
-                  onTap: () => _open(const WifiQuickPage()),
-                ),
-                HubRow(
+                _toolTile(
                   icon: Icons.wifi,
-                  title: 'Wi-Fi Utama',
-                  subtitle: 'SSID, sandi, keamanan, batas akses',
-                  onTap: () => _open(const WifiMainPage()),
+                  label: 'Wi-Fi',
+                  onTap: () => _openPage(context, const _WifiHubPage()),
                 ),
-                HubRow(
-                  icon: Icons.tune,
-                  title: 'Wi-Fi Lanjutan',
-                  subtitle: 'Negara, kanal, batas akses',
-                  onTap: () => _open(const WifiAdvancedPage()),
-                ),
-                HubRow(
-                  icon: Icons.wifi_protected_setup,
-                  title: 'WPS',
-                  subtitle: 'Sambung perangkat dengan PIN / PBC',
-                  onTap: () => _open(const WifiWpsPage()),
-                ),
-                HubRow(
-                  icon: Icons.filter_alt_outlined,
-                  title: 'Filter MAC',
-                  subtitle: 'Daftar putih / daftar hitam perangkat',
-                  onTap: () => _open(const WifiMacPage()),
-                ),
-                HubRow(
-                  icon: Icons.battery_saver_outlined,
-                  title: 'Hemat Daya',
-                  subtitle: 'Cakupan Wi-Fi & waktu tidur',
-                  onTap: () => _open(const WifiPowerPage()),
-                ),
-              ],
-            ),
-            const SectionLabel('Jaringan'),
-            HubGroup(
-              children: <Widget>[
-                HubRow(
-                  icon: Icons.settings_ethernet,
-                  title: 'Mode Koneksi',
-                  subtitle: 'Otomatis / manual & roaming',
-                  onTap: () => _open(const NetModePage()),
-                ),
-                HubRow(
-                  icon: Icons.cell_tower,
-                  title: 'Pilih Jaringan',
-                  subtitle: 'Pindai & pilih operator manual',
-                  onTap: () => _open(const NetSelectPage()),
-                ),
-                HubRow(
+                _toolTile(
                   icon: Icons.public,
-                  title: 'APN',
-                  subtitle: 'Profil akses internet operator',
-                  onTap: () => _open(const NetApnPage()),
+                  label: 'Jaringan',
+                  onTap: () => _openPage(context, const _NetHubPage()),
                 ),
-                HubRow(
-                  icon: Icons.data_usage,
-                  title: 'Manajemen Data',
-                  subtitle: 'Batas pemakaian & peringatan',
-                  onTap: () => _open(const NetDataPage()),
-                ),
-              ],
-            ),
-            const SectionLabel('Perangkat'),
-            HubGroup(
-              children: <Widget>[
-                HubRow(
+                _toolTile(
                   icon: Icons.devices,
-                  title: 'Perangkat Terhubung',
-                  subtitle: 'Daftar klien, blokir & ganti nama',
-                  onTap: () => _open(const DevicesPage()),
+                  label: 'Perangkat',
+                  onTap: () => _openPage(context, const DevicesPage()),
                 ),
-              ],
-            ),
-            const SectionLabel('Lanjutan'),
-            HubGroup(
-              children: <Widget>[
-                HubRow(
-                  icon: Icons.router,
-                  title: 'Router & DHCP',
-                  subtitle: 'IP LAN, netmask, server DHCP',
-                  onTap: () => _open(const AdvRouterPage()),
+                _toolTile(
+                  icon: Icons.battery_saver_outlined,
+                  label: 'Baterai',
+                  onTap: () => _openPage(context, const WifiPowerPage()),
                 ),
-                HubRow(
+                _toolTile(
                   icon: Icons.security,
-                  title: 'Firewall',
-                  subtitle: 'Filter port, forwarding, DMZ, URL, UPnP',
-                  onTap: () => _open(const AdvFirewallPage()),
+                  label: 'Firewall',
+                  onTap: () =>
+                      _openPage(context, const AdvFirewallPage()),
                 ),
-                HubRow(
-                  icon: Icons.schedule,
-                  title: 'Waktu (SNTP)',
-                  subtitle: 'Sinkronisasi waktu perangkat',
-                  onTap: () => _open(const AdvSntpPage()),
+                _toolTile(
+                  icon: Icons.settings,
+                  label: 'Sistem',
+                  onTap: () => _openPage(context, const _SystemHubPage()),
                 ),
-                HubRow(
-                  icon: Icons.sim_card_outlined,
-                  title: 'PIN SIM',
-                  subtitle: 'Status PIN & sisa upaya (baca-saja)',
-                  onTap: () => _open(const AdvPinPage()),
+                _toolTile(
+                  icon: Icons.sms,
+                  label: 'SMS',
+                  onTap: () => widget.onJumpToTab?.call(2),
                 ),
-                HubRow(
-                  icon: Icons.system_update_alt,
-                  title: 'Pembaruan Firmware',
-                  subtitle: 'Periksa & atur pembaruan otomatis',
-                  onTap: () => _open(const AdvFotaPage()),
-                ),
-              ],
-            ),
-            const SectionLabel('Sistem'),
-            HubGroup(
-              children: <Widget>[
-                HubRow(
-                  icon: Icons.power_settings_new,
-                  title: 'Sistem & Perangkat',
-                  subtitle: 'Info, mulai ulang, matikan, reset, sandi',
-                  onTap: () => _open(const SystemPage()),
+                _toolTile(
+                  icon: Icons.terminal,
+                  label: 'Diagnostik',
+                  onTap: () => widget.onJumpToTab?.call(3),
                 ),
               ],
             ),
@@ -244,6 +172,190 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ],
         );
       },
+    );
+  }
+
+  /// Satu tile grid Tools ala tpMiFi: kotak navy membulat bertepi
+  /// berisi ikon cyan, label kecil di bawahnya.
+  Widget _toolTile({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: AppColors.card,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Icon(icon, color: AppColors.primary, size: 26),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 10.5,
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Kerangka halaman hub: daftar HubRow dalam satu HubGroup —
+/// dipakai hub Wi-Fi, Jaringan, dan Sistem.
+class _HubPage extends StatelessWidget {
+  const _HubPage({required this.title, required this.rows});
+
+  final String title;
+  final List<Widget> rows;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(title)),
+      body: ListView(
+        padding: AppSpace.page,
+        children: <Widget>[HubGroup(children: rows)],
+      ),
+    );
+  }
+}
+
+/// Hub Wi-Fi: sub-halaman Wi-Fi v2.0 yang sama persis.
+class _WifiHubPage extends StatelessWidget {
+  const _WifiHubPage();
+
+  @override
+  Widget build(BuildContext context) {
+    return _HubPage(
+      title: 'Wi-Fi',
+      rows: <Widget>[
+        HubRow(
+          icon: Icons.rocket_launch_outlined,
+          title: 'Pengaturan Cepat',
+          subtitle: 'Wizard APN + Wi-Fi sekali jalan',
+          onTap: () => _openPage(context, const WifiQuickPage()),
+        ),
+        HubRow(
+          icon: Icons.wifi,
+          title: 'Wi-Fi Utama',
+          subtitle: 'SSID, sandi, keamanan, batas akses',
+          onTap: () => _openPage(context, const WifiMainPage()),
+        ),
+        HubRow(
+          icon: Icons.tune,
+          title: 'Wi-Fi Lanjutan',
+          subtitle: 'Negara, kanal, batas akses',
+          onTap: () => _openPage(context, const WifiAdvancedPage()),
+        ),
+        HubRow(
+          icon: Icons.wifi_protected_setup,
+          title: 'WPS',
+          subtitle: 'Sambung perangkat dengan PIN / PBC',
+          onTap: () => _openPage(context, const WifiWpsPage()),
+        ),
+        HubRow(
+          icon: Icons.filter_alt_outlined,
+          title: 'Filter MAC',
+          subtitle: 'Daftar putih / daftar hitam perangkat',
+          onTap: () => _openPage(context, const WifiMacPage()),
+        ),
+      ],
+    );
+  }
+}
+
+/// Hub Jaringan: sub-halaman jaringan v2.0 yang sama persis
+/// (Router & DHCP ikut grup ini agar tidak ada fitur hilang).
+class _NetHubPage extends StatelessWidget {
+  const _NetHubPage();
+
+  @override
+  Widget build(BuildContext context) {
+    return _HubPage(
+      title: 'Jaringan',
+      rows: <Widget>[
+        HubRow(
+          icon: Icons.settings_ethernet,
+          title: 'Mode Koneksi',
+          subtitle: 'Otomatis / manual & roaming',
+          onTap: () => _openPage(context, const NetModePage()),
+        ),
+        HubRow(
+          icon: Icons.cell_tower,
+          title: 'Pilih Jaringan',
+          subtitle: 'Pindai & pilih operator manual',
+          onTap: () => _openPage(context, const NetSelectPage()),
+        ),
+        HubRow(
+          icon: Icons.public,
+          title: 'APN',
+          subtitle: 'Profil akses internet operator',
+          onTap: () => _openPage(context, const NetApnPage()),
+        ),
+        HubRow(
+          icon: Icons.data_usage,
+          title: 'Manajemen Data',
+          subtitle: 'Batas pemakaian & peringatan',
+          onTap: () => _openPage(context, const NetDataPage()),
+        ),
+        HubRow(
+          icon: Icons.router,
+          title: 'Router & DHCP',
+          subtitle: 'IP LAN, netmask, server DHCP',
+          onTap: () => _openPage(context, const AdvRouterPage()),
+        ),
+      ],
+    );
+  }
+}
+
+/// Hub Sistem: Info Perangkat & daya & sandi (satu halaman
+/// SystemPage v2.0) + SNTP, PIN SIM, Pembaruan Firmware.
+class _SystemHubPage extends StatelessWidget {
+  const _SystemHubPage();
+
+  @override
+  Widget build(BuildContext context) {
+    return _HubPage(
+      title: 'Sistem',
+      rows: <Widget>[
+        HubRow(
+          icon: Icons.power_settings_new,
+          title: 'Sistem & Perangkat',
+          subtitle: 'Info, mulai ulang, matikan, reset, sandi',
+          onTap: () => _openPage(context, const SystemPage()),
+        ),
+        HubRow(
+          icon: Icons.schedule,
+          title: 'Waktu (SNTP)',
+          subtitle: 'Sinkronisasi waktu perangkat',
+          onTap: () => _openPage(context, const AdvSntpPage()),
+        ),
+        HubRow(
+          icon: Icons.sim_card_outlined,
+          title: 'PIN SIM',
+          subtitle: 'Status PIN & sisa upaya (baca-saja)',
+          onTap: () => _openPage(context, const AdvPinPage()),
+        ),
+        HubRow(
+          icon: Icons.system_update_alt,
+          title: 'Pembaruan Firmware',
+          subtitle: 'Periksa & atur pembaruan otomatis',
+          onTap: () => _openPage(context, const AdvFotaPage()),
+        ),
+      ],
     );
   }
 }

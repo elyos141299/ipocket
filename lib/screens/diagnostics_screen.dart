@@ -68,6 +68,13 @@ class DiagnosticsScreen extends StatelessWidget {
                     icon: const Icon(Icons.battery_charging_full),
                     label: const Text('Probe Baterai & Bulanan'),
                   ),
+                  FilledButton.icon(
+                    onPressed: state.busy
+                        ? null
+                        : () => state.runBatteryPercentProbe(),
+                    icon: const Icon(Icons.battery_std),
+                    label: const Text('Probe Persen Baterai'),
+                  ),
                   OutlinedButton.icon(
                     onPressed: () async {
                       await Clipboard.setData(ClipboardData(text: text));

@@ -629,6 +629,61 @@ class ReqprocClient {
     log.addNote('=== PROBE BATERAI & BULANAN SELESAI ===');
   }
 
+  /// Probe Persen Baterai (BARU v3.0): satu GET proc_get dengan
+  /// cmd = SELURUH daftar field grup status WebUI PERSIS seperti
+  /// yang dikirim WebUI (js/com.js utuh: array dasar `cQ` 12 field
+  /// digabung array `aw` 40 field, lalu — karena HAS_SMS aktif —
+  /// ditambah 3 field SMS; WebUI menggabungkannya menjadi satu
+  /// cmd.join(",") dalam SATU panggilan multi_data=1).
+  ///
+  /// Latar: WebUI menampilkan persen dari battery_vol_percent
+  /// dalam grup ini (dan jatuh ke 100 bila kosong — fallback itu
+  /// TIDAK ditiru aplikasi). Di semua tes perangkat, panggilan
+  /// getStatus aplikasi selalu menerima battery_vol_percent ""
+  /// — dugaan: firmware hanya mengisi field itu bila diminta
+  /// dalam grup persis WebUI. Probe ini membuktikannya: respons
+  /// mentah tercatat lewat [procGet], dan nilai battery_vol_percent
+  /// & battery_pers diekstrak eksplisit ke log sesudahnya.
+  /// getStatus utama TIDAK diubah.
+  Future<void> runBatteryPercentProbe() async {
+    log.addNote('=== PROBE PERSEN BATERAI DIMULAI ===');
+    const cmd = 'modem_main_state,pin_status,blc_wan_mode,'
+        'blc_wan_auto_mode,loginfo,fota_new_version_state,'
+        'fota_current_upgrade_state,fota_upgrade_selector,'
+        'network_provider,is_mandatory,sta_count,m_sta_count,'
+        'signalbar,network_type,sub_network_type,ppp_status,'
+        'rj45_state,EX_SSID1,sta_ip_status,EX_wifi_profile,'
+        'm_ssid_enable,wifi_cur_state,SSID1,simcard_roam,'
+        'lan_ipaddr,battery_charging,battery_vol_percent,'
+        'battery_pers,spn_name_data,spn_b1_flag,spn_b2_flag,'
+        'realtime_tx_bytes,realtime_rx_bytes,realtime_time,'
+        'realtime_tx_thrpt,realtime_rx_thrpt,monthly_rx_bytes,'
+        'monthly_tx_bytes,traffic_alined_delta,monthly_time,'
+        'date_month,data_volume_limit_switch,'
+        'data_volume_limit_size,data_volume_alert_percent,'
+        'data_volume_limit_unit,roam_setting_option,'
+        'upg_roam_switch,fota_package_already_download,ssid,'
+        'dial_mode,ethwan_mode,default_wan_name,'
+        'sms_received_flag,sts_received_flag,sms_unread_num';
+    try {
+      final res = await procGet(
+        <String, String>{'cmd': cmd, 'multi_data': '1'},
+        note: 'Probe persen baterai: grup status WebUI utuh '
+            '(multi_data=1)',
+      );
+      final volPercent = res['battery_vol_percent'];
+      final pers = res['battery_pers'];
+      log.addNote(
+        'HASIL PROBE PERSEN BATERAI: '
+        'battery_vol_percent=${volPercent == null ? '(tidak ada di respons)' : '"$volPercent"'}; '
+        'battery_pers=${pers == null ? '(tidak ada di respons)' : '"$pers"'}',
+      );
+    } catch (e) {
+      log.addNote('Probe persen baterai gagal: $e');
+    }
+    log.addNote('=== PROBE PERSEN BATERAI SELESAI ===');
+  }
+
   /// Probe Field Kosong (v1.1): dari uji perangkat asli v1.0,
   /// beberapa field kembali "" dari panggilan status gabungan
   /// (data_counter, station_list, lan_station_list, ssid,

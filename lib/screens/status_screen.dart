@@ -6,19 +6,19 @@ import 'package:flutter/material.dart';
 import '../app_state.dart';
 import '../models.dart';
 import '../theme.dart';
+import 'settings/devices_page.dart';
+import 'settings/system_page.dart';
+import 'settings/wifi_power_page.dart';
 
-// Palet dashboard kini dari token terpusat theme.dart (v2.0) —
-// nilainya sama persis dengan palet v1.4 (GELAP + PUTIH, pink
-// Advan hanya aksen kecil). Nama lokal dipertahankan agar isi
-// layar tidak berubah perilaku/tampilannya.
+// Palet Beranda dari token terpusat theme.dart v3.0 — navy
+// Ookla + cyan. Nama lokal dipertahankan agar isi layar ringkas.
 const Color _primary = AppColors.primary;
 const Color _accent = AppColors.accent;
 const Color _ink = AppColors.textPrimary;
 const Color _inkSoft = AppColors.textSecondary;
 const Color _inkFaint = AppColors.textFaint;
-const Color _headerDark = AppColors.headerDark;
-const Color _headerDeep = AppColors.headerDeep;
-const Color _tileBg = AppColors.panel;
+const Color _headerTop = AppColors.header;
+const Color _headerBottom = AppColors.bg;
 const Color _tileIcon = AppColors.accent;
 
 String _or(String? v) => (v == null || v.isEmpty) ? '—' : v;
@@ -51,9 +51,12 @@ String _fmtUptime(int? seconds) {
   return '$s detik';
 }
 
-/// Dashboard utama: kartu sambutan + login sebelum masuk; setelah
-/// masuk tampil header perangkat, lingkaran pemakaian data bulanan,
-/// kecepatan live, 4 tile ringkasan, dan detail label-nilai.
+/// Beranda v3.0 (dulu "Status"): kartu sambutan + login sebelum
+/// masuk; setelah masuk tampil header perangkat, GAUGE setengah
+/// lingkaran ala Ookla (total sesi + kecepatan live), 3 kartu
+/// statistik yang bisa diketuk (Baterai/Sinyal/Perangkat), tombol
+/// Sambung/Putus, kartu perangkat terhubung, dan detail SSID.
+/// Struktur mengikuti tpMiFi; data & logika identik v2.0.
 /// Auto-refresh 5 detik selama tab ini tampil dan sudah login.
 class StatusScreen extends StatefulWidget {
   const StatusScreen({super.key, this.active = true});
@@ -242,15 +245,15 @@ class _StatusScreenState extends State<StatusScreen> {
       widgets.add(const Text('Memuat status perangkat…'));
     } else {
       widgets.addAll(<Widget>[
+        _gaugeCard(context, s),
+        const SizedBox(height: 12),
+        _statsRow(context, state, s),
+        const SizedBox(height: 12),
         _connectionButton(context, state, s),
         const SizedBox(height: 12),
-        _usageCard(context, s),
-        const SizedBox(height: 12),
-        _tilesGrid(context, state, s),
+        _devicesCard(context, state),
         const SizedBox(height: 12),
         _detailCard(context, state, s),
-        const SizedBox(height: 12),
-        _devicesCard(context, state),
       ]);
     }
     return widgets;
@@ -261,10 +264,11 @@ class _StatusScreenState extends State<StatusScreen> {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
         gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: <Color>[_headerDark, _headerDeep],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: <Color>[_headerTop, _headerBottom],
         ),
+        border: Border.all(color: AppColors.border),
       ),
       padding: const EdgeInsets.all(16),
       child: Row(
@@ -276,7 +280,7 @@ class _StatusScreenState extends State<StatusScreen> {
                 const Text(
                   'Advan iPocket',
                   style: TextStyle(
-                    color: Colors.white,
+                    color: _ink,
                     fontSize: 19,
                     fontWeight: FontWeight.bold,
                   ),
@@ -284,12 +288,12 @@ class _StatusScreenState extends State<StatusScreen> {
                 const SizedBox(height: 2),
                 Text(
                   '${_or(s?.networkProvider)} • ${_or(s?.networkType)}',
-                  style: const TextStyle(color: Colors.white70),
+                  style: const TextStyle(color: _inkSoft),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   _or(s?.connectionLabel),
-                  style: const TextStyle(color: Colors.white70),
+                  style: const TextStyle(color: _inkSoft),
                 ),
               ],
             ),
@@ -297,12 +301,12 @@ class _StatusScreenState extends State<StatusScreen> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: <Widget>[
-              _signalBars(s?.signalBar, color: Colors.white),
+              _signalBars(s?.signalBar),
               const SizedBox(height: 4),
               Text(
                 s?.signalDbm == null ? '—' : '${s!.signalDbm} dBm',
                 style: const TextStyle(
-                  color: Colors.white,
+                  color: _ink,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -331,232 +335,266 @@ class _StatusScreenState extends State<StatusScreen> {
     DeviceStatus s,
   ) {
     final connected = _isConnected(s);
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Row(
-          children: <Widget>[
-            Icon(
-              connected ? Icons.link : Icons.link_off,
-              color: connected ? _tileIcon : Colors.white38,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                connected
-                    ? 'Data tersambung'
-                    : 'Data terputus',
-                style: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                  color: _ink,
-                ),
-              ),
-            ),
-            if (connected)
-              OutlinedButton.icon(
-                onPressed: state.busy
-                    ? null
-                    : () async {
-                        final msg = await state.toggleConnection(false);
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text(msg)),
-                          );
-                        }
-                      },
-                icon: const Icon(Icons.power_settings_new),
-                label: const Text('Putuskan'),
-              )
-            else
-              FilledButton.icon(
-                onPressed: state.busy
-                    ? null
-                    : () async {
-                        final msg = await state.toggleConnection(true);
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text(msg)),
-                          );
-                        }
-                      },
-                icon: const Icon(Icons.power_settings_new),
-                label: const Text('Sambungkan'),
-              ),
-          ],
-        ),
-      ),
+    // v3.0: gaya pil outline cyan ala Ookla — label & perilaku
+    // (toggleConnection + snackbar) sama persis seperti v2.0.
+    final pillStyle = OutlinedButton.styleFrom(
+      foregroundColor: _primary,
+      side: const BorderSide(color: _primary, width: 1.4),
+      shape: const StadiumBorder(),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
     );
-  }
-
-  Widget _usageCard(BuildContext context, DeviceStatus s) {
-    final hasMonthly = s.monthlySent != null || s.monthlyReceived != null;
-    final totalMonthly = (s.monthlySent ?? 0) + (s.monthlyReceived ?? 0);
-    final hasSession = s.txBytes != null || s.rxBytes != null;
-    final totalSession = (s.txBytes ?? 0) + (s.rxBytes ?? 0);
-    // Perangkat user tidak mengatur batas data: ring digambar
-    // proporsional terhadap patokan tampilan 10 GB (lihat README).
-    // Bila data bulanan (data_counter) kosong — seperti terbukti di
-    // perangkat user — lingkaran menampilkan total SESI berjalan
-    // (realtime_tx_bytes + realtime_rx_bytes) dengan label jujur.
-    const quotaBytes = 10 * 1024 * 1024 * 1024;
-    final int? displayTotal =
-        hasMonthly ? totalMonthly : (hasSession ? totalSession : null);
-    final fraction = displayTotal == null
-        ? 0.0
-        : (displayTotal / quotaBytes).clamp(0.0, 1.0);
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: <Widget>[
-            CustomPaint(
-              painter: _RingPainter(fraction: fraction),
-              child: SizedBox(
-                width: 210,
-                height: 210,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: <Widget>[
-                    Text(
-                      displayTotal == null ? '—' : _fmtBytes(displayTotal),
-                      style: const TextStyle(
-                        fontSize: 30,
-                        fontWeight: FontWeight.bold,
-                        color: _ink,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      hasMonthly ? 'Pemakaian Bulan Ini' : 'Total Sesi Ini',
-                      style: const TextStyle(color: _inkSoft),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      hasMonthly
-                          ? 'Ring: patokan 10 GB'
-                          : 'data bulanan belum terbaca dari perangkat',
-                      style:
-                          const TextStyle(color: _inkFaint, fontSize: 11),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: <Widget>[
-                _speedItem(
-                  Icons.arrow_downward,
-                  _fmtRate(s.rxRate),
-                  'Unduh sekarang',
-                ),
-                _speedItem(
-                  Icons.arrow_upward,
-                  _fmtRate(s.txRate),
-                  'Unggah sekarang',
-                ),
-              ],
-            ),
-          ],
-        ),
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: AppColors.border),
       ),
-    );
-  }
-
-  Widget _speedItem(IconData icon, String value, String label) {
-    return Column(
-      children: <Widget>[
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            Icon(icon, size: 18, color: _primary),
-            const SizedBox(width: 4),
-            Text(
-              value,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        children: <Widget>[
+          Icon(
+            connected ? Icons.link : Icons.link_off,
+            color: connected ? _tileIcon : _inkFaint,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              connected
+                  ? 'Data tersambung'
+                  : 'Data terputus',
               style: const TextStyle(
-                fontSize: 16,
                 fontWeight: FontWeight.w600,
                 color: _ink,
               ),
             ),
-          ],
-        ),
-        Text(label, style: const TextStyle(color: _inkSoft)),
-      ],
+          ),
+          if (connected)
+            OutlinedButton.icon(
+              onPressed: state.busy
+                  ? null
+                  : () async {
+                      final msg = await state.toggleConnection(false);
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(msg)),
+                        );
+                      }
+                    },
+              icon: const Icon(Icons.power_settings_new),
+              label: const Text('Putuskan'),
+              style: pillStyle,
+            )
+          else
+            OutlinedButton.icon(
+              onPressed: state.busy
+                  ? null
+                  : () async {
+                      final msg = await state.toggleConnection(true);
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(msg)),
+                        );
+                      }
+                    },
+              icon: const Icon(Icons.power_settings_new),
+              label: const Text('Sambungkan'),
+              style: pillStyle,
+            ),
+        ],
+      ),
     );
   }
 
-  Widget _tilesGrid(BuildContext context, AppState state, DeviceStatus s) {
+  /// Gauge Beranda v3.0 ala Ookla: busur setengah lingkaran
+  /// gradasi cyan → biru → ungu; tengahnya total SESI berjalan
+  /// (realtime_tx_bytes + realtime_rx_bytes) + kecepatan live
+  /// ↓/↑. (Data bulanan tetap tampil di kartu detail di bawah —
+  /// data_counter perangkat user terbukti kosong karena rencana
+  /// Manajemen Data nonaktif.)
+  Widget _gaugeCard(BuildContext context, DeviceStatus s) {
+    final hasSession = s.txBytes != null || s.rxBytes != null;
+    final totalSession = (s.txBytes ?? 0) + (s.rxBytes ?? 0);
+    // Skala lunak gauge: fraksi busur = total sesi terhadap
+    // patokan tampilan 1 GB, dibatasi maksimal 100% (cap) —
+    // murni patokan visual, bukan batas data perangkat.
+    const scaleBytes = 1024 * 1024 * 1024;
+    final fraction =
+        (totalSession / scaleBytes).clamp(0.0, 1.0).toDouble();
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+        child: Column(
+          children: <Widget>[
+            SizedBox(
+              width: 260,
+              height: 148,
+              child: Stack(
+                children: <Widget>[
+                  CustomPaint(
+                    size: const Size(260, 148),
+                    painter: _GaugePainter(fraction: fraction),
+                  ),
+                  Positioned.fill(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: <Widget>[
+                        const Text(
+                          'TOTAL SESI INI',
+                          style: TextStyle(
+                            color: _inkSoft,
+                            fontSize: 11,
+                            letterSpacing: 1.2,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          hasSession ? _fmtBytes(totalSession) : '—',
+                          style: const TextStyle(
+                            fontSize: 32,
+                            fontWeight: FontWeight.bold,
+                            color: _ink,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '↓ ${_fmtRate(s.rxRate)}  •  '
+                          '↑ ${_fmtRate(s.txRate)}',
+                          style: const TextStyle(
+                            color: _inkSoft,
+                            fontSize: 12.5,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Baris 3 kartu statistik Beranda v3.0 (ala mockup Ookla):
+  /// BATERAI, SINYAL, PERANGKAT — masing-masing bisa diketuk
+  /// menuju halaman terkait.
+  Widget _statsRow(BuildContext context, AppState state, DeviceStatus s) {
     // Jumlah klien dari daftar ASLI (panggilan terpisah tanpa
     // multi_data, diisi refreshStatus) — hitungan dari status
     // gabungan selalu kosong untuk field array (probe v1.1).
     final wifiCount = state.wifiStations.length;
     final lanCount = state.lanStations.length;
     final clientsTotal = wifiCount + lanCount;
-    final capTotal = state.smsCapacity?.total;
-    // Baterai: persen asli (battery_vol_percent) hanya bila terisi;
-    // selain itu tampilkan teks LEVEL dari battery_pers (skala 0–3,
-    // 3 = Penuh) — battery_pers terbukti BUKAN persen.
+    // Baterai: persen asli (battery_vol_percent) hanya bila terisi
+    // (lihat Probe Persen Baterai di Diagnostik); selain itu label
+    // LEVEL dari battery_pers (skala 0–3, 3 = Penuh) — battery_pers
+    // terbukti BUKAN persen, dan fallback 100% ala WebUI TIDAK
+    // ditiru.
     final batteryValue = s.batteryPercent != null
         ? '${s.batteryPercent}%'
         : (s.batteryLevelLabel ?? '—');
-    final batteryLabel =
-        s.batteryCharging == true ? 'Battery · Mengisi' : 'Battery';
-    return GridView.count(
-      crossAxisCount: 2,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 12,
-      crossAxisSpacing: 12,
-      childAspectRatio: 1.5,
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        _tile(
-          icon: _batteryIcon(s),
-          value: batteryValue,
-          label: batteryLabel,
+        Expanded(
+          child: _statCard(
+            label: 'Baterai',
+            value: batteryValue,
+            sub: s.batteryCharging == true ? 'Mengisi' : null,
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const WifiPowerPage(),
+              ),
+            ),
+          ),
         ),
-        _tile(
-          icon: Icons.sms,
-          value: s.smsUnread?.toString() ?? '—',
-          label: capTotal == null
-              ? 'SMS belum dibaca'
-              : 'SMS belum dibaca • kapasitas $capTotal',
+        const SizedBox(width: 8),
+        Expanded(
+          child: _statCard(
+            label: 'Sinyal',
+            value: s.signalDbm == null ? '—' : '${s.signalDbm} dBm',
+            sub: s.signalBar == null ? null : 'Bar ${s.signalBar}/5',
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const SystemPage(),
+              ),
+            ),
+          ),
         ),
-        _tile(
-          icon: Icons.devices,
-          value: clientsTotal.toString(),
-          label: 'Clients online '
-              '(WiFi $wifiCount • kabel $lanCount)',
-        ),
-        _tile(
-          icon: Icons.sd_storage,
-          value: 'Tidak tersedia',
-          label: 'SD Sharing — fitur nonaktif di perangkat ini',
+        const SizedBox(width: 8),
+        Expanded(
+          child: _statCard(
+            label: 'Perangkat',
+            value: '$clientsTotal klien',
+            sub: 'WiFi $wifiCount • kabel $lanCount',
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const DevicesPage(),
+              ),
+            ),
+          ),
         ),
       ],
     );
   }
 
-  IconData _batteryIcon(DeviceStatus s) {
-    if (s.batteryCharging == true) return Icons.battery_charging_full;
-    final p = s.batteryPercent;
-    if (p != null) {
-      if (p >= 90) return Icons.battery_full;
-      if (p >= 70) return Icons.battery_5_bar;
-      if (p >= 50) return Icons.battery_4_bar;
-      if (p >= 30) return Icons.battery_3_bar;
-      if (p >= 15) return Icons.battery_2_bar;
-      if (p > 0) return Icons.battery_1_bar;
-      return Icons.battery_0_bar;
-    }
-    // Tanpa persen asli: ikon mengikuti level 0–3 (battery_pers).
-    final l = s.batteryLevel;
-    if (l == null) return Icons.battery_unknown;
-    if (l >= 3) return Icons.battery_full;
-    if (l == 2) return Icons.battery_5_bar;
-    if (l == 1) return Icons.battery_2_bar;
-    return Icons.battery_0_bar;
+  /// Satu kartu statistik: label kecil uppercase sekunder, nilai
+  /// besar, sublabel redup opsional. Seluruh kartu bisa diketuk.
+  Widget _statCard({
+    required String label,
+    required String value,
+    String? sub,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: AppColors.card,
+      borderRadius: AppRadius.cardBorder,
+      child: InkWell(
+        borderRadius: AppRadius.cardBorder,
+        onTap: onTap,
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: AppRadius.cardBorder,
+            border: Border.all(color: AppColors.border),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Text(
+                label.toUpperCase(),
+                style: const TextStyle(
+                  fontSize: 10,
+                  letterSpacing: 0.6,
+                  color: _inkSoft,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: _ink,
+                ),
+              ),
+              if (sub != null) ...<Widget>[
+                const SizedBox(height: 2),
+                Text(
+                  sub,
+                  style: const TextStyle(fontSize: 10.5, color: _inkFaint),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   /// Teks baterai untuk baris detail: persen asli bila ada;
@@ -571,47 +609,6 @@ class _StatusScreenState extends State<StatusScreen> {
     // Di luar skala 0–3, label sudah berbentuk "Level N".
     if (l > 3) return '$label$charging';
     return 'Level $l ($label)$charging';
-  }
-
-  Widget _tile({
-    required IconData icon,
-    required String value,
-    required String label,
-  }) {
-    return Card(
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: _tileBg,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(icon, color: _tileIcon, size: 24),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              value,
-              style: const TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: _ink,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: const TextStyle(color: _inkSoft, fontSize: 12),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   Widget _detailCard(BuildContext context, AppState state, DeviceStatus s) {
@@ -751,7 +748,7 @@ class _StatusScreenState extends State<StatusScreen> {
           height: 6.0 + i * 3,
           margin: const EdgeInsets.only(right: 2),
           decoration: BoxDecoration(
-            color: active ? color : Colors.white.withOpacity(0.35),
+            color: active ? color : AppColors.gaugeTrack,
             borderRadius: BorderRadius.circular(1),
           ),
         );
@@ -760,12 +757,12 @@ class _StatusScreenState extends State<StatusScreen> {
   }
 }
 
-/// Marka logo untuk layar masuk: glyph WiFi gradasi pink Advan
-/// di atas kotak gelap membulat — meniru Logo B (ikon aplikasi).
+/// Marka logo untuk layar masuk: glyph WiFi gradasi cyan →
+/// ungu (palet Ookla v3.0) di atas kotak navy membulat bertepi.
 /// Digambar dengan CustomPaint TANPA aset biner, karena
 /// push-files menolak file biner dan ikon PNG hanya ditanam ke
-/// AppIcon oleh workflow. Logo lama huruf "i" ditinggalkan
-/// di v1.3.
+/// AppIcon oleh workflow. (Ikon aplikasi di home screen TIDAK
+/// ikut berubah — ini hanya marka di dalam aplikasi.)
 class WifiLogoMark extends StatelessWidget {
   const WifiLogoMark({super.key, this.size = 72});
 
@@ -781,8 +778,9 @@ class WifiLogoMark extends StatelessWidget {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: <Color>[_headerDeep, _headerDark],
+          colors: <Color>[_headerTop, AppColors.panel],
         ),
+        border: Border.all(color: AppColors.border),
       ),
       child: CustomPaint(painter: _WifiGlyphPainter()),
     );
@@ -790,8 +788,8 @@ class WifiLogoMark extends StatelessWidget {
 }
 
 /// Painter glyph WiFi: tiga busur konsentris menghadap ke atas
-/// + titik di pusat busur, gradasi pink #F95FB4 → #EC008D,
-/// ujung busur bulat (round cap).
+/// + titik di pusat busur, gradasi cyan #00E5FF → biru #2979FF →
+/// ungu #B04DFF, ujung busur bulat (round cap).
 class _WifiGlyphPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
@@ -801,7 +799,11 @@ class _WifiGlyphPainter extends CustomPainter {
     final shader = const LinearGradient(
       begin: Alignment.topCenter,
       end: Alignment.bottomCenter,
-      colors: <Color>[_accent, _primary],
+      colors: <Color>[
+        AppColors.accent,
+        AppColors.gradientMid,
+        AppColors.gradientEnd,
+      ],
     ).createShader(Offset.zero & size);
     final arcPaint = Paint()
       ..shader = shader
@@ -826,37 +828,47 @@ class _WifiGlyphPainter extends CustomPainter {
   bool shouldRepaint(_WifiGlyphPainter oldDelegate) => false;
 }
 
-/// Ring pemakaian data: lingkaran latar tipis + busur proporsional.
-class _RingPainter extends CustomPainter {
-  _RingPainter({required this.fraction});
+/// Gauge setengah lingkaran ala Ookla: busur latar #1B2650 +
+/// busur nilai gradasi horizontal cyan → biru → ungu, ujung
+/// bulat. Busur membentang 180° (kiri → atas → kanan) dengan
+/// pusat di tengah-bawah kanvas.
+class _GaugePainter extends CustomPainter {
+  _GaugePainter({required this.fraction});
 
-  /// 0.0–1.0, proporsi pemakaian terhadap patokan ring.
+  /// 0.0–1.0, proporsi total sesi terhadap skala lunak gauge.
   final double fraction;
 
   @override
   void paint(Canvas canvas, Size size) {
-    const stroke = 16.0;
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = (math.min(size.width, size.height) - stroke) / 2;
+    const stroke = 13.0;
+    final center = Offset(size.width / 2, size.height - stroke / 2 - 2);
+    final radius = math.min(size.width / 2, size.height) - stroke / 2 - 2;
     final rect = Rect.fromCircle(center: center, radius: radius);
 
     final bg = Paint()
-      ..color = const Color(0x1AFFFFFF)
+      ..color = AppColors.gaugeTrack
       ..style = PaintingStyle.stroke
-      ..strokeWidth = stroke;
-    canvas.drawCircle(center, radius, bg);
+      ..strokeWidth = stroke
+      ..strokeCap = StrokeCap.round;
+    canvas.drawArc(rect, math.pi, math.pi, false, bg);
 
     if (fraction > 0) {
       final fg = Paint()
-        ..color = _primary
+        ..shader = const LinearGradient(
+          colors: <Color>[
+            AppColors.accent,
+            AppColors.gradientMid,
+            AppColors.gradientEnd,
+          ],
+        ).createShader(Offset.zero & size)
         ..style = PaintingStyle.stroke
         ..strokeWidth = stroke
         ..strokeCap = StrokeCap.round;
-      canvas.drawArc(rect, -math.pi / 2, 2 * math.pi * fraction, false, fg);
+      canvas.drawArc(rect, math.pi, math.pi * fraction, false, fg);
     }
   }
 
   @override
-  bool shouldRepaint(_RingPainter oldDelegate) =>
+  bool shouldRepaint(_GaugePainter oldDelegate) =>
       oldDelegate.fraction != fraction;
 }

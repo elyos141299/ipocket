@@ -19,7 +19,7 @@ class SectionLabel extends StatelessWidget {
   }
 }
 
-/// Kotak ikon aksen: panel gelap membulat + ikon pink terang —
+/// Kotak ikon aksen: panel navy membulat bertepi + ikon cyan —
 /// dipakai baris hub dan tile di seluruh aplikasi.
 class IconBox extends StatelessWidget {
   const IconBox(this.icon, {super.key, this.color = AppColors.accent});
@@ -32,9 +32,10 @@ class IconBox extends StatelessWidget {
     return Container(
       width: 38,
       height: 38,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: AppColors.panel,
         borderRadius: AppRadius.tileBorder,
+        border: Border.all(color: AppColors.border),
       ),
       child: Icon(icon, color: color, size: 21),
     );
@@ -178,7 +179,7 @@ class InfoCard extends StatelessWidget {
   }
 }
 
-/// Keadaan memuat standar: indikator pink di tengah + label.
+/// Keadaan memuat standar: indikator cyan di tengah + label.
 class LoadingState extends StatelessWidget {
   const LoadingState({super.key, this.label = 'Memuat dari perangkat…'});
 
@@ -273,7 +274,7 @@ class ErrorState extends StatelessWidget {
   }
 }
 
-/// Tombol simpan utama yang seragam (pink, lebar penuh, ikon centang).
+/// Tombol simpan utama yang seragam (cyan, lebar penuh, ikon centang).
 class SaveButton extends StatelessWidget {
   const SaveButton({
     super.key,
@@ -371,7 +372,7 @@ class SettingsPageShell extends StatelessWidget {
     if (!loggedIn) {
       return const EmptyState(
         icon: Icons.lock_outline,
-        message: 'Masuk dulu di tab Status untuk membuka pengaturan ini.',
+        message: 'Masuk dulu di tab Beranda untuk membuka pengaturan ini.',
       );
     }
     if (loading) return const LoadingState();

@@ -429,6 +429,21 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  /// Jalankan Probe Persen Baterai (v3.0): satu panggilan grup
+  /// status WebUI utuh (multi_data=1) untuk membuktikan apakah
+  /// firmware mengisi battery_vol_percent bila diminta dalam
+  /// grup persis WebUI; hasilnya tercatat di log diagnostik.
+  Future<void> runBatteryPercentProbe() async {
+    busy = true;
+    notifyListeners();
+    try {
+      await client.runBatteryPercentProbe();
+    } finally {
+      busy = false;
+      notifyListeners();
+    }
+  }
+
   /// Jalankan urutan tes reqproc dari klien (login → status → SMS →
   /// kapasitas), lalu segarkan data aplikasi bila login berhasil.
   Future<void> runFullTest() async {

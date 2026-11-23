@@ -1,41 +1,62 @@
 import 'package:flutter/material.dart';
 
-/// Token desain terpusat iPocket (v2.0 — poles profesional).
+/// Token desain terpusat iPocket v3.0 — ROMBAK TOTAL UI.
 ///
-/// Satu sumber kebenaran untuk warna, spasi, radius, dan tipografi
-/// di SEMUA tab (Status, SMS, Diagnostik, Pengaturan + seluruh
-/// sub-halaman pengaturan). Tema dasar tetap yang disetujui user
-/// sejak v1.4: GELAP + PUTIH, pink Advan #EC008D hanya aksen kecil
-/// (tombol utama, state aktif, toggle ON, ikon aksen, ring).
+/// Struktur mengikuti aplikasi tpMiFi (TP-Link): Beranda fokus
+/// perangkat + halaman Tools berisi grid ikon. Palet mengikuti
+/// Speedtest by Ookla: navy sangat gelap, kartu navy terang,
+/// aksen cyan elektrik, gradasi gauge cyan → biru → ungu.
+/// Pink Advan (#EC008D/#F95FB4) dan palet gelap-ungu v1.4–v2.0
+/// DITINGGALKAN total di UI (ikon aplikasi di home screen tidak
+/// ikut berubah). Fitur & perilaku identik v2.0.2 — hanya kulit.
 class AppColors {
   AppColors._();
 
-  /// Latar utama aplikasi.
-  static const Color bg = Color(0xFF121016);
+  /// Latar utama aplikasi (navy sangat gelap ala Ookla).
+  static const Color bg = Color(0xFF070B1F);
+
+  /// Latar header / ujung gradasi terang.
+  static const Color header = Color(0xFF0B1030);
+
+  /// Latar tab bar bawah.
+  static const Color tabBar = Color(0xFF0A0F28);
 
   /// Latar kartu.
-  static const Color card = Color(0xFF1E1A24);
+  static const Color card = Color(0xFF121A3D);
+
+  /// Garis tepi kartu & panel.
+  static const Color border = Color(0xFF1E2A55);
 
   /// Latar panel di dalam kartu (kotak ikon, bidang sekunder).
-  static const Color panel = Color(0xFF262030);
+  static const Color panel = Color(0xFF16224A);
 
-  /// Pink Advan — aksen utama.
-  static const Color primary = Color(0xFFEC008D);
+  /// Busur latar gauge (jalur kosong).
+  static const Color gaugeTrack = Color(0xFF1B2650);
 
-  /// Pink terang — gradasi & ikon aksen.
-  static const Color accent = Color(0xFFF95FB4);
+  /// Cyan Ookla — aksen utama (tombol, state aktif, toggle ON,
+  /// ikon aksen).
+  static const Color primary = Color(0xFF00C2FF);
+
+  /// Ujung terang gradasi (cyan muda) — ikon aksen & gradasi.
+  static const Color accent = Color(0xFF00E5FF);
+
+  /// Ujung tengah gradasi gauge (biru).
+  static const Color gradientMid = Color(0xFF2979FF);
+
+  /// Ujung akhir gradasi gauge (ungu).
+  static const Color gradientEnd = Color(0xFFB04DFF);
 
   /// Teks utama.
-  static const Color textPrimary = Colors.white;
+  static const Color textPrimary = Color(0xFFEAF2FF);
 
-  /// Teks sekunder (putih 70%).
-  static const Color textSecondary = Color(0xB3FFFFFF);
+  /// Teks sekunder.
+  static const Color textSecondary = Color(0xFF8FB8E8);
 
-  /// Teks redup (putih 38%) — label seksi, petunjuk.
-  static const Color textFaint = Color(0x61FFFFFF);
+  /// Teks redup — label seksi, petunjuk.
+  static const Color textFaint = Color(0xFF5F7DB3);
 
-  /// Garis pembatas (putih ±12%).
-  static const Color divider = Color(0x1FFFFFFF);
+  /// Garis pembatas.
+  static const Color divider = Color(0xFF1E2A55);
 
   /// Aksi berbahaya (matikan, reset pabrik, hapus).
   static const Color danger = Color(0xFFEF5350);
@@ -45,10 +66,6 @@ class AppColors {
 
   /// Peringatan.
   static const Color warning = Color(0xFFFFB74D);
-
-  /// Ujung gradasi header dashboard.
-  static const Color headerDark = Color(0xFF16121A);
-  static const Color headerDeep = Color(0xFF2A1530);
 }
 
 /// Skala spasi seragam (kelipatan 4).
@@ -124,6 +141,10 @@ class AppText {
 
 /// Tema Material aplikasi — dibangun dari token di atas agar
 /// semua permukaan (dialog, field, tombol, kartu) konsisten.
+///
+/// CATATAN Flutter 3.32 (terbukti dari CI v2.0.x): appBarTheme
+/// bertipe AppBarTheme (TANPA "Data"), cardTheme bertipe
+/// CardThemeData (DENGAN "Data") — jangan tertukar.
 ThemeData buildAppTheme() {
   final scheme = ColorScheme.fromSeed(
     seedColor: AppColors.primary,
@@ -145,7 +166,10 @@ ThemeData buildAppTheme() {
       color: AppColors.card,
       elevation: 0,
       margin: EdgeInsets.zero,
-      shape: RoundedRectangleBorder(borderRadius: AppRadius.cardBorder),
+      shape: RoundedRectangleBorder(
+        borderRadius: AppRadius.cardBorder,
+        side: BorderSide(color: AppColors.border),
+      ),
     ),
     inputDecorationTheme: const InputDecorationTheme(
       filled: true,
@@ -179,7 +203,7 @@ ThemeData buildAppTheme() {
       trackColor: WidgetStateProperty.resolveWith(
         (states) => states.contains(WidgetState.selected)
             ? AppColors.primary
-            : const Color(0xFF3A3345),
+            : const Color(0xFF26336B),
       ),
     ),
     listTileTheme: const ListTileThemeData(

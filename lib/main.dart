@@ -14,9 +14,9 @@ class IPocketApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'iPocket',
-      // Tema v2.0: token desain terpusat di theme.dart — GELAP +
-      // PUTIH (keputusan user sejak v1.4), pink Advan #EC008D
-      // hanya aksen kecil. Lihat AppColors/AppSpace/AppRadius.
+      // Tema v3.0: token desain terpusat di theme.dart — rombak
+      // total gaya tpMiFi + palet Speedtest by Ookla (navy gelap,
+      // aksen cyan). Lihat AppColors/AppSpace/AppRadius.
       theme: buildAppTheme(),
       home: const AppShell(),
     );

@@ -290,7 +290,7 @@ class _SmsScreenState extends State<SmsScreen> {
         child: Padding(
           padding: EdgeInsets.all(24),
           child: Text(
-            'Masuk dulu di tab Status untuk melihat SMS di MiFi-mu.',
+            'Masuk dulu di tab Beranda untuk melihat SMS di MiFi-mu.',
             textAlign: TextAlign.center,
           ),
         ),
@@ -333,7 +333,7 @@ class _SmsScreenState extends State<SmsScreen> {
               children: <Widget>[
                 Icon(
                   Icons.message,
-                  color: unread ? _primary : Colors.white38,
+                  color: unread ? _primary : AppColors.textFaint,
                 ),
                 if (unread)
                   Positioned(
@@ -373,7 +373,7 @@ class _SmsScreenState extends State<SmsScreen> {
                     padding: EdgeInsets.only(top: 4),
                     child: Text(
                       'Ketuk untuk tandai sudah dibaca',
-                      style: TextStyle(fontSize: 11, color: Colors.white38),
+                      style: TextStyle(fontSize: 11, color: AppColors.textFaint),
                     ),
                   ),
               ],
