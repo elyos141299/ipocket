@@ -4,7 +4,12 @@ Aplikasi Flutter "iPocket": panel status untuk MiFi Advan iPocket MF01
 (API reqproc perangkat) — pantau sinyal, baterai, perangkat terhubung,
 dan SMS tanpa membuka browser. Spesifikasi API: `../API-CONTRACT.md`.
 
-Versi: **v1.4** — tema GELAP + PUTIH di seluruh aplikasi
+Versi: **v1.5** — perbaikan format `sms_time` kirim SMS
+sesuai definisi `getCurrentTimeString()` lib.js (zona polos
+tanpa zero-pad: WIB `"+7"`, bukan `"+07"` — penyebab pasti
+SEND_SMS `result "failure"`), dan auto-refresh status
+dipercepat 15 → **5 detik** (keputusan user).
+Sebelumnya **v1.4** — tema GELAP + PUTIH di seluruh aplikasi
 (permintaan user: tema terang kurang disukai), wire SMS
 ditambah `notCallback:"true"` persis bentuk WebUI, dan
 Penemuan Terarah JS diperluas ke `js/lib.js` (konteks ±2000)
@@ -25,7 +30,7 @@ Tab Status menjadi dashboard ala `../UI-REFERENCE.md` (tema biru
 muda): kartu sambutan + login, header operator/jaringan/sinyal,
 lingkaran pemakaian data bulanan, kecepatan live, 4 tile
 (Battery/SMS/Clients/SD Sharing), dan detail label-nilai, dengan
-auto-refresh 15 detik selama tab tampil & sudah login. Tab SMS
+auto-refresh 5 detik selama tab tampil & sudah login. Tab SMS
 menampilkan daftar asli (baca-saja; kirim & hapus menyusul).
 Tab Diagnostik & Pengaturan dipertahankan apa adanya — semua
 tombol tes/penemuan masih dipakai untuk verifikasi lapangan,
@@ -232,6 +237,34 @@ kirim SMS v1.3; lihat addendum API-CONTRACT 14:37):
    buruan terakhir untuk perbaikan kirim SMS yang pasti
    (tes v1.3: SEND_SMS → result "failure").
 
+**v1.5** (hasil Penemuan Terarah lib.js di v1.4 + keputusan
+user 23 Nov 2026 ±14:48; lihat addendum API-CONTRACT ±15:00):
+
+1. **Perbaikan `sms_time` — penyebab SMS ketemu & DITUTUP** —
+   definisi lib.js ketemu: `escapeMessage` ternyata fungsi
+   identitas dan `encodeMessage` persis implementasi aplikasi
+   (hex UTF-16BE) — keduanya BENAR sejak awal. Yang salah
+   hanya zona waktu di `smsTimeString`: aplikasi mengirim
+   `"+07"` (zero-pad), sedangkan `getCurrentTimeString()`
+   WebUI menghasilkan bilangan polos dari
+   `0 - getTimezoneOffset()/60` → Jakarta **`"+7"`**.
+   `smsTimeString` kini meniru JS persis dari
+   `DateTime.timeZoneOffset` (jam = menit/60; bulat →
+   `"+<jam>"`/`"<jam>"` polos; bersisa menit → desimal tanpa
+   padding, mis. `"+5.5"`). Catatan log SEND_SMS diperbarui:
+   sms_time kini PASTI, bukan asumsi. Asumsi tersisa hanya
+   `which_cgi` ALL_DELETE_SMS dan pemetaan `save_time`
+   SET_MESSAGE_CENTER. Catatan tes: kirim SMS user ditujukan
+   ke nomor perdana di dalam MiFi itu sendiri — tes ulang
+   v1.5 membuktikan apakah self-send diterima; bila masih
+   failure, uji ke nomor lain sebelum menyimpulkan.
+2. **Polling status 5 detik** — keputusan user ("Percepat
+   jadi 5 detik"). Timer auto-refresh tab Status 15 → 5
+   detik; label UI "Diperbarui otomatis tiap 5 detik." dan
+   komentar terkait diselaraskan. Timeout HTTP Penemuan JS
+   (15 detik di `discovery.dart`) BUKAN polling — tidak
+   diubah.
+
 Asumsi tampilan lingkaran data: perangkat user TIDAK mengatur
 batas data (Manajemen Data "Tidak diatur"), jadi ring digambar
 proporsional terhadap **patokan tampilan 10 GB** — angka di tengah
@@ -304,7 +337,7 @@ app/
         │                       # tombol sambung/putus, lingkaran data
         │                       # bulanan/sesi, 4 tile, detail (SSID
         │                       # asli), daftar perangkat terhubung,
-        │                       # auto-refresh 15 detik
+        │                       # auto-refresh 5 detik
         ├── sms_screen.dart       # SMS penuh: daftar + kapasitas,
         │                       # tulis/kirim, draf, hapus, tandai
         │                       # dibaca, hapus semua, pengaturan SMS

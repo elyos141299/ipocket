@@ -24,7 +24,7 @@ class _AppShellState extends State<AppShell> {
         index: _index,
         children: <Widget>[
           // `active` memberi tahu dashboard kapan tab-nya tampil,
-          // untuk menyalakan/mematikan auto-refresh 15 detik.
+          // untuk menyalakan/mematikan auto-refresh 5 detik.
           StatusScreen(active: _index == 0),
           const SmsScreen(),
           const DiagnosticsScreen(),

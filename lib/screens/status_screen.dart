@@ -55,7 +55,7 @@ String _fmtUptime(int? seconds) {
 /// Dashboard utama: kartu sambutan + login sebelum masuk; setelah
 /// masuk tampil header perangkat, lingkaran pemakaian data bulanan,
 /// kecepatan live, 4 tile ringkasan, dan detail label-nilai.
-/// Auto-refresh 15 detik selama tab ini tampil dan sudah login.
+/// Auto-refresh 5 detik selama tab ini tampil dan sudah login.
 class StatusScreen extends StatefulWidget {
   const StatusScreen({super.key, this.active = true});
 
@@ -99,7 +99,7 @@ class _StatusScreenState extends State<StatusScreen> {
   void _syncAutoRefresh() {
     final shouldRun = widget.active && AppState.instance.loggedIn;
     if (shouldRun && _autoTimer == null) {
-      _autoTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+      _autoTimer = Timer.periodic(const Duration(seconds: 5), (_) {
         final s = AppState.instance;
         if (widget.active && s.loggedIn && !s.busy) {
           s.refreshStatus();
@@ -215,7 +215,7 @@ class _StatusScreenState extends State<StatusScreen> {
         children: <Widget>[
           const Expanded(
             child: Text(
-              'Diperbarui otomatis tiap 15 detik.',
+              'Diperbarui otomatis tiap 5 detik.',
               style: TextStyle(color: _inkSoft),
             ),
           ),

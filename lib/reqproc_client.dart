@@ -375,17 +375,31 @@ class ReqprocClient {
     return WifiSsidInfo(res);
   }
 
-  /// Format sms_time SEND_SMS. WebUI memakai getCurrentTimeString()
-  /// dari lib.js — definisinya TIDAK ada di dump com.js yang
-  /// terkumpul (hanya call-site-nya), jadi dipakai format umum
-  /// keluarga ZTE "yy;MM;dd;hh;mm;ss;+07" (zona perangkat
-  /// GMT+07:00 Jakarta). Setiap pengiriman mencatat catatan ini
-  /// ke log diagnostik agar bisa diverifikasi di perangkat asli.
+  /// Format sms_time SEND_SMS — meniru getCurrentTimeString()
+  /// WebUI dari lib.js PERSIS (definisi ketemu lewat Penemuan
+  /// Terarah v1.4; lihat addendum API-CONTRACT 23 Nov ±15:00):
+  /// "yy;MM;dd;hh;mm;ss;" + zona waktu sebagai bilangan polos
+  /// TANPA zero-pad. Di JS, zona = 0 - getTimezoneOffset()/60
+  /// dengan tanda "+" bila offset JS < 0 (lokal di depan UTC).
+  /// timeZoneOffset Dart adalah kebalikannya (WIB = +420
+  /// menit), jadi jam = menit/60: WIB menghasilkan "+7" —
+  /// BUKAN "+07"; nol di depan itulah yang membuat SEND_SMS
+  /// menjawab result "failure" (tes v1.3/v1.4). Zona bersisa
+  /// menit mengikuti JS: hasil bagi desimal tanpa padding
+  /// (mis. "+5.5").
   static String smsTimeString(DateTime t) {
     String two(int v) => v.toString().padLeft(2, '0');
     final yy = two(t.year % 100);
+    final hours = t.timeZoneOffset.inMinutes / 60;
+    final String tz;
+    if (hours == hours.truncateToDouble()) {
+      final h = hours.toInt();
+      tz = h >= 0 ? '+$h' : '$h';
+    } else {
+      tz = hours >= 0 ? '+$hours' : '$hours';
+    }
     return '$yy;${two(t.month)};${two(t.day)};${two(t.hour)};'
-        '${two(t.minute)};${two(t.second)};+07';
+        '${two(t.minute)};${two(t.second)};$tz';
   }
 
   /// Kirim SMS: POST SEND_SMS {notCallback, Number, sms_time,
@@ -397,10 +411,12 @@ class ReqprocClient {
   /// Mengembalikan Map respons mentah (result "success" = terkirim).
   Future<Map<String, dynamic>> sendSms(String number, String message) {
     log.addNote(
-      'SEND_SMS: sms_time memakai format umum ZTE '
-      '"yy;MM;dd;hh;mm;ss;+07" — definisi getCurrentTimeString() '
-      'WebUI tidak ada di dump com.js (hanya call-site), jadi '
-      'format ini ASUMSI yang perlu diverifikasi di perangkat.',
+      'SEND_SMS: sms_time mengikuti getCurrentTimeString() '
+      'lib.js persis — "yy;MM;dd;hh;mm;ss;" + zona polos tanpa '
+      'zero-pad (WIB "+7") — PASTI, bukan asumsi (definisi '
+      'ketemu di lib.js; addendum API-CONTRACT 23 Nov ±15:00). '
+      'Asumsi tersisa di jalur SMS lain: which_cgi ALL_DELETE_SMS '
+      'dan pemetaan save_time SET_MESSAGE_CENTER.',
     );
     return procPost(
       <String, String>{
