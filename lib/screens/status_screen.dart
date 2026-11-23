@@ -13,7 +13,6 @@ import 'settings/wifi_power_page.dart';
 // Palet Beranda dari token terpusat theme.dart v3.0 — navy
 // Ookla + cyan. Nama lokal dipertahankan agar isi layar ringkas.
 const Color _primary = AppColors.primary;
-const Color _accent = AppColors.accent;
 const Color _ink = AppColors.textPrimary;
 const Color _inkSoft = AppColors.textSecondary;
 const Color _inkFaint = AppColors.textFaint;
@@ -51,13 +50,16 @@ String _fmtUptime(int? seconds) {
   return '$s detik';
 }
 
-/// Beranda v3.0 (dulu "Status"): kartu sambutan + login sebelum
-/// masuk; setelah masuk tampil header perangkat, GAUGE setengah
-/// lingkaran ala Ookla (total sesi + kecepatan live), 3 kartu
-/// statistik yang bisa diketuk (Baterai/Sinyal/Perangkat), tombol
-/// Sambung/Putus, kartu perangkat terhubung, dan detail SSID.
-/// Struktur mengikuti tpMiFi; data & logika identik v2.0.
-/// Auto-refresh 5 detik selama tab ini tampil dan sudah login.
+/// Beranda (dulu "Status"): halaman masuk profesional v3.1
+/// (Logo A + kartu form) sebelum masuk; setelah masuk tampil
+/// header perangkat, indikator LIVE, GAUGE setengah lingkaran
+/// ala Ookla (total BULANAN asli + kecepatan live), 3 kartu
+/// statistik yang bisa diketuk (Baterai/Sinyal/Perangkat),
+/// tombol Sambung/Putus, kartu perangkat terhubung, dan detail
+/// SSID. Struktur mengikuti tpMiFi; data & logika identik v2.0.
+/// Auto-refresh 2 detik selama tab ini tampil dan sudah login
+/// (v3.1: dipercepat dari 5 detik atas permintaan user, dengan
+/// indikator LIVE menggantikan teks penjelasan interval).
 class StatusScreen extends StatefulWidget {
   const StatusScreen({super.key, this.active = true});
 
@@ -101,7 +103,7 @@ class _StatusScreenState extends State<StatusScreen> {
   void _syncAutoRefresh() {
     final shouldRun = widget.active && AppState.instance.loggedIn;
     if (shouldRun && _autoTimer == null) {
-      _autoTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      _autoTimer = Timer.periodic(const Duration(seconds: 2), (_) {
         final s = AppState.instance;
         if (widget.active && s.loggedIn && !s.busy) {
           s.refreshStatus();
@@ -119,11 +121,10 @@ class _StatusScreenState extends State<StatusScreen> {
     return ListenableBuilder(
       listenable: state,
       builder: (context, _) {
+        if (!state.loggedIn) return _loginView(context, state);
         return ListView(
           padding: const EdgeInsets.all(16),
-          children: state.loggedIn
-              ? _dashboard(context, state)
-              : <Widget>[_welcomeCard(context, state)],
+          children: _dashboard(context, state),
         );
       },
     );
@@ -131,76 +132,197 @@ class _StatusScreenState extends State<StatusScreen> {
 
   // ---------- Keadaan belum login ----------
 
-  Widget _welcomeCard(BuildContext context, AppState state) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
+  /// Halaman masuk v3.1 — mengikuti mockup yang disetujui user
+  /// (v31-assets/login-mockup.png): latar gradasi navy, Logo A
+  /// besar di tengah atas, nama + tagline, kartu form bertepi
+  /// (label kecil + field sandi + tombol Masuk gradasi
+  /// cyan→biru), pesan error sebagai BANNER rapi di atas kartu,
+  /// petunjuk gateway kecil di bawah kartu, label versi redup
+  /// di paling bawah. Perilaku login TIDAK berubah dari v3.0
+  /// (controller, onChanged, onSubmitted, state.login sama).
+  Widget _loginView(BuildContext context, AppState state) {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: <Color>[_headerTop, _headerBottom],
+        ),
+      ),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(24, 40, 24, 20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
-            const Center(child: WifiLogoMark(size: 72)),
-            const SizedBox(height: 12),
-            Text(
+            const Center(child: AppLogoMark(size: 148)),
+            const SizedBox(height: 26),
+            const Text(
               'iPocket',
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    color: _ink,
-                    fontWeight: FontWeight.bold,
-                  ),
+              style: TextStyle(
+                color: _ink,
+                fontSize: 40,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 0.5,
+              ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 6),
             const Text(
-              'Panel pantau MiFi Advan iPocket MF01.\n'
-              'Masuk dengan kata sandi admin perangkatmu.',
+              'Panel pantau MiFi Advan iPocket MF01',
               textAlign: TextAlign.center,
+              style: TextStyle(color: _inkSoft, fontSize: 14.5),
+            ),
+            const SizedBox(height: 34),
+            if (state.loginMessage != null) ...<Widget>[
+              _loginErrorBanner(state.loginMessage!),
+              const SizedBox(height: 14),
+            ],
+            Container(
+              decoration: BoxDecoration(
+                color: AppColors.card,
+                borderRadius: AppRadius.cardBorder,
+                border: Border.all(color: AppColors.border),
+              ),
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  const Text(
+                    'KATA SANDI ADMIN',
+                    style: TextStyle(
+                      color: _inkSoft,
+                      fontSize: 11.5,
+                      letterSpacing: 1.1,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _pwController,
+                    obscureText: !_showPassword,
+                    onChanged: (v) => state.adminPassword = v,
+                    onSubmitted: (_) {
+                      if (!state.busy) state.login();
+                    },
+                    decoration: InputDecoration(
+                      hintText: 'Kata sandi admin MiFi',
+                      helperText:
+                          'Hanya disimpan selama aplikasi berjalan.',
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _showPassword
+                              ? Icons.visibility_off
+                              : Icons.visibility,
+                        ),
+                        onPressed: () => setState(
+                            () => _showPassword = !_showPassword),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  _loginButton(state),
+                  if (state.busy) ...<Widget>[
+                    const SizedBox(height: 14),
+                    const LinearProgressIndicator(),
+                  ],
+                ],
+              ),
             ),
             const SizedBox(height: 16),
-            TextField(
-              controller: _pwController,
-              obscureText: !_showPassword,
-              onChanged: (v) => state.adminPassword = v,
-              onSubmitted: (_) {
-                if (!state.busy) state.login();
-              },
-              decoration: InputDecoration(
-                labelText: 'Kata sandi admin MiFi',
-                helperText: 'Hanya disimpan selama aplikasi berjalan.',
-                border: const OutlineInputBorder(),
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    _showPassword ? Icons.visibility_off : Icons.visibility,
-                  ),
-                  onPressed: () =>
-                      setState(() => _showPassword = !_showPassword),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            if (state.loginMessage != null) ...<Widget>[
-              Text(
-                state.loginMessage!,
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.error,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 12),
-            ],
-            FilledButton.icon(
-              onPressed: state.busy ? null : () => state.login(),
-              icon: const Icon(Icons.login),
-              label: const Text('Masuk'),
-            ),
-            const SizedBox(height: 8),
-            if (state.busy) const LinearProgressIndicator(),
-            const SizedBox(height: 8),
             Text(
-              'Gateway: ${state.gateway} — pastikan HP terhubung ke '
-              'WiFi iPocket.',
+              'Gateway ${state.gateway} — pastikan HP terhubung '
+              'ke WiFi iPocket',
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodySmall,
+              style: const TextStyle(color: _inkFaint, fontSize: 12.5),
+            ),
+            const SizedBox(height: 44),
+            const Text(
+              'v3.1',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: _inkFaint, fontSize: 12),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  /// Banner error login: panel merah lembut bertepi + ikon +
+  /// teks — tampil di ATAS kartu form (bukan teks polos di
+  /// tengah form seperti v3.0).
+  Widget _loginErrorBanner(String message) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.danger.withValues(alpha: 0.12),
+        borderRadius: AppRadius.tileBorder,
+        border: Border.all(
+          color: AppColors.danger.withValues(alpha: 0.45),
+        ),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          const Icon(
+            Icons.error_outline,
+            color: AppColors.danger,
+            size: 19,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 13.5,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Tombol Masuk gradasi cyan → biru (Container gradasi +
+  /// InkWell) mengikuti mockup — bukan FilledButton polos.
+  Widget _loginButton(AppState state) {
+    final busy = state.busy;
+    return Container(
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: <Color>[AppColors.accent, AppColors.gradientMid],
+        ),
+        borderRadius: AppRadius.tileBorder,
+      ),
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          borderRadius: AppRadius.tileBorder,
+          onTap: busy ? null : () => state.login(),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 15),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: <Widget>[
+                Icon(
+                  Icons.login,
+                  color: Colors.white.withValues(alpha: busy ? 0.5 : 1),
+                  size: 20,
+                ),
+                const SizedBox(width: 9),
+                Text(
+                  'Masuk',
+                  style: TextStyle(
+                    color:
+                        Colors.white.withValues(alpha: busy ? 0.5 : 1),
+                    fontSize: 16.5,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -213,19 +335,12 @@ class _StatusScreenState extends State<StatusScreen> {
     final widgets = <Widget>[
       _headerCard(context, s),
       const SizedBox(height: 12),
-      Row(
+      // v3.1: baris teks "Diperbarui otomatis tiap 5 detik" +
+      // tombol Segarkan DIHAPUS atas permintaan user — diganti
+      // indikator LIVE ringkas (titik hijau berdenyut + "LIVE").
+      const Row(
         children: <Widget>[
-          const Expanded(
-            child: Text(
-              'Diperbarui otomatis tiap 5 detik.',
-              style: TextStyle(color: _inkSoft),
-            ),
-          ),
-          OutlinedButton.icon(
-            onPressed: state.busy ? null : () => state.refreshStatus(),
-            icon: const Icon(Icons.refresh),
-            label: const Text('Segarkan'),
-          ),
+          _LiveIndicator(),
         ],
       ),
       const SizedBox(height: 12),
@@ -405,21 +520,31 @@ class _StatusScreenState extends State<StatusScreen> {
     );
   }
 
-  /// Gauge Beranda v3.0 ala Ookla: busur setengah lingkaran
-  /// gradasi cyan → biru → ungu; tengahnya total SESI berjalan
-  /// (realtime_tx_bytes + realtime_rx_bytes) + kecepatan live
-  /// ↓/↑. (Data bulanan tetap tampil di kartu detail di bawah —
-  /// data_counter perangkat user terbukti kosong karena rencana
-  /// Manajemen Data nonaktif.)
+  /// Gauge Beranda ala Ookla: busur setengah lingkaran gradasi
+  /// cyan → biru → ungu.
+  ///
+  /// v3.1 — BULANAN ASLI: tengah gauge kini total BULAN INI dari
+  /// field datar monthly_rx_bytes + monthly_tx_bytes grup status
+  /// WebUI (TERBUKTI terisi di perangkat user lewat probe v3.0:
+  /// ±1,07 GB + ±159 MB — menggantikan total sesi v3.0 yang
+  /// datanya kecil dan data_counter yang terbukti kosong).
+  /// Sub-baris: kecepatan live ↓/↑ + total sesi berjalan.
+  ///
+  /// Fraksi busur: bila batas data Manajemen Data aktif
+  /// (dataLimitBytes terhitung mengikuti rumus WebUI), fraksi =
+  /// total bulanan ÷ batas. Selain itu fraksi = total bulanan ÷
+  /// referensi lunak 10 GB — murni patokan tampilan agar busur
+  /// terbaca, BUKAN batas data perangkat.
   Widget _gaugeCard(BuildContext context, DeviceStatus s) {
+    final totalMonthly = s.monthlyTotalBytes;
     final hasSession = s.txBytes != null || s.rxBytes != null;
     final totalSession = (s.txBytes ?? 0) + (s.rxBytes ?? 0);
-    // Skala lunak gauge: fraksi busur = total sesi terhadap
-    // patokan tampilan 1 GB, dibatasi maksimal 100% (cap) —
-    // murni patokan visual, bukan batas data perangkat.
-    const scaleBytes = 1024 * 1024 * 1024;
-    final fraction =
-        (totalSession / scaleBytes).clamp(0.0, 1.0).toDouble();
+    final limit = s.dataLimitBytes;
+    const softScaleBytes = 10 * 1024 * 1024 * 1024; // 10 GB
+    final denom = (limit != null && limit > 0) ? limit : softScaleBytes;
+    final fraction = totalMonthly == null
+        ? 0.0
+        : (totalMonthly / denom).clamp(0.0, 1.0).toDouble();
     return Card(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
@@ -439,7 +564,7 @@ class _StatusScreenState extends State<StatusScreen> {
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: <Widget>[
                         const Text(
-                          'TOTAL SESI INI',
+                          'TOTAL BULAN INI',
                           style: TextStyle(
                             color: _inkSoft,
                             fontSize: 11,
@@ -449,7 +574,9 @@ class _StatusScreenState extends State<StatusScreen> {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          hasSession ? _fmtBytes(totalSession) : '—',
+                          totalMonthly == null
+                              ? '—'
+                              : _fmtBytes(totalMonthly),
                           style: const TextStyle(
                             fontSize: 32,
                             fontWeight: FontWeight.bold,
@@ -465,7 +592,17 @@ class _StatusScreenState extends State<StatusScreen> {
                             fontSize: 12.5,
                           ),
                         ),
-                        const SizedBox(height: 6),
+                        const SizedBox(height: 2),
+                        Text(
+                          hasSession
+                              ? 'Sesi ini ${_fmtBytes(totalSession)}'
+                              : 'Sesi ini —',
+                          style: const TextStyle(
+                            color: _inkFaint,
+                            fontSize: 11.5,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
                       ],
                     ),
                   ),
@@ -490,9 +627,11 @@ class _StatusScreenState extends State<StatusScreen> {
     final clientsTotal = wifiCount + lanCount;
     // Baterai: persen asli (battery_vol_percent) hanya bila terisi
     // (lihat Probe Persen Baterai di Diagnostik); selain itu label
-    // LEVEL dari battery_pers (skala 0–3, 3 = Penuh) — battery_pers
-    // terbukti BUKAN persen, dan fallback 100% ala WebUI TIDAK
-    // ditiru.
+    // LEVEL JUJUR dari battery_pers (skala 0–3: Tinggi / Sedang /
+    // Rendah / Sangat Rendah — pilihan user v3.1, tanpa klaim
+    // "Penuh") — battery_pers terbukti BUKAN persen, dan fallback
+    // 100% ala WebUI TIDAK ditiru. Ikon segmen mengikuti level;
+    // petir tampil bila sedang mengisi.
     final batteryValue = s.batteryPercent != null
         ? '${s.batteryPercent}%'
         : (s.batteryLevelLabel ?? '—');
@@ -503,7 +642,10 @@ class _StatusScreenState extends State<StatusScreen> {
           child: _statCard(
             label: 'Baterai',
             value: batteryValue,
-            sub: s.batteryCharging == true ? 'Mengisi' : null,
+            valueIcon: _batterySegments(
+              s.batteryLevel,
+              charging: s.batteryCharging == true,
+            ),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute<void>(
                 builder: (_) => const WifiPowerPage(),
@@ -541,12 +683,65 @@ class _StatusScreenState extends State<StatusScreen> {
     );
   }
 
+  /// Ikon baterai 3 segmen untuk kartu Baterai: segmen terisi
+  /// mengikuti level battery_pers (0–3), warna segmen cyan —
+  /// merah lembut khusus level 0. Ikon petir kecil menempel bila
+  /// perangkat sedang mengisi (battery_charging == "1").
+  Widget _batterySegments(int? level, {required bool charging}) {
+    final filled = (level ?? 0).clamp(0, 3);
+    final segColor = level == 0
+        ? AppColors.danger
+        : (level == null ? AppColors.gaugeTrack : AppColors.primary);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        Container(
+          width: 27,
+          height: 14,
+          padding: const EdgeInsets.all(2),
+          decoration: BoxDecoration(
+            border: Border.all(color: _inkSoft, width: 1.1),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Row(
+            children: List<Widget>.generate(3, (i) {
+              return Expanded(
+                child: Container(
+                  margin: EdgeInsets.only(right: i < 2 ? 1.5 : 0),
+                  decoration: BoxDecoration(
+                    color: i < filled ? segColor : AppColors.gaugeTrack,
+                    borderRadius: BorderRadius.circular(1.5),
+                  ),
+                ),
+              );
+            }),
+          ),
+        ),
+        Container(
+          width: 2.5,
+          height: 6,
+          decoration: const BoxDecoration(
+            color: _inkSoft,
+            borderRadius: BorderRadius.horizontal(
+              right: Radius.circular(2),
+            ),
+          ),
+        ),
+        if (charging) ...<Widget>[
+          const SizedBox(width: 3),
+          const Icon(Icons.bolt, size: 15, color: AppColors.warning),
+        ],
+      ],
+    );
+  }
+
   /// Satu kartu statistik: label kecil uppercase sekunder, nilai
   /// besar, sublabel redup opsional. Seluruh kartu bisa diketuk.
   Widget _statCard({
     required String label,
     required String value,
     String? sub,
+    Widget? valueIcon,
     required VoidCallback onTap,
   }) {
     return Material(
@@ -575,6 +770,10 @@ class _StatusScreenState extends State<StatusScreen> {
                 ),
               ),
               const SizedBox(height: 3),
+              if (valueIcon != null) ...<Widget>[
+                valueIcon,
+                const SizedBox(height: 4),
+              ],
               Text(
                 value,
                 style: const TextStyle(
@@ -598,7 +797,8 @@ class _StatusScreenState extends State<StatusScreen> {
   }
 
   /// Teks baterai untuk baris detail: persen asli bila ada;
-  /// selain itu "Level 3 (Penuh)" dari battery_pers (bukan "3%").
+  /// selain itu "Level 3 (Tinggi)" dari battery_pers (bukan "3%";
+  /// label level jujur v3.1 — tanpa "Penuh").
   String _batteryDetailText(DeviceStatus s) {
     final charging = s.batteryCharging == true ? ' · Mengisi' : '';
     final p = s.batteryPercent;
@@ -643,8 +843,11 @@ class _StatusScreenState extends State<StatusScreen> {
       <String>['Total unduh sesi', _fmtBytes(s.rxBytes)],
       <String>['Total unggah sesi', _fmtBytes(s.txBytes)],
       <String>[
+        // v3.1: field datar monthly_*_bytes (terbukti terisi);
+        // data_counter hanya fallback bila field datar kosong.
         'Pemakaian bulan ini',
-        '↓ ${_fmtBytes(s.monthlyReceived)} • ↑ ${_fmtBytes(s.monthlySent)}',
+        '↓ ${_fmtBytes(s.monthlyRxBytes ?? s.monthlyReceived)} • '
+            '↑ ${_fmtBytes(s.monthlyTxBytes ?? s.monthlySent)}',
       ],
       <String>[
         'Perangkat nirkabel',
@@ -757,14 +960,75 @@ class _StatusScreenState extends State<StatusScreen> {
   }
 }
 
-/// Marka logo untuk layar masuk: glyph WiFi gradasi cyan →
-/// ungu (palet Ookla v3.0) di atas kotak navy membulat bertepi.
-/// Digambar dengan CustomPaint TANPA aset biner, karena
-/// push-files menolak file biner dan ikon PNG hanya ditanam ke
-/// AppIcon oleh workflow. (Ikon aplikasi di home screen TIDAK
-/// ikut berubah — ini hanya marka di dalam aplikasi.)
-class WifiLogoMark extends StatelessWidget {
-  const WifiLogoMark({super.key, this.size = 72});
+/// Indikator LIVE Beranda v3.1: titik hijau berdenyut (animasi
+/// fade sederhana, berulang) + teks "LIVE" kecil — menggantikan
+/// baris teks "Diperbarui otomatis…" dan tombol Segarkan.
+class _LiveIndicator extends StatefulWidget {
+  const _LiveIndicator();
+
+  @override
+  State<_LiveIndicator> createState() => _LiveIndicatorState();
+}
+
+class _LiveIndicatorState extends State<_LiveIndicator>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 850),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        FadeTransition(
+          opacity: Tween<double>(begin: 0.25, end: 1).animate(_ctrl),
+          child: Container(
+            width: 9,
+            height: 9,
+            decoration: const BoxDecoration(
+              color: AppColors.success,
+              shape: BoxShape.circle,
+            ),
+          ),
+        ),
+        const SizedBox(width: 7),
+        const Text(
+          'LIVE',
+          style: TextStyle(
+            color: AppColors.success,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.6,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Marka Logo A RESMI v3.1 (pilihan user — varian "cincin
+/// gauge", file master logo-final.png / ikon aplikasi): cincin
+/// gauge ±270° gradasi cyan → biru → ungu mengelilingi glyph
+/// WiFi (tiga sektor busur + titik), di atas kotak navy membulat
+/// bertepi. Digambar dengan CustomPaint TANPA aset biner, karena
+/// push-files menolak file biner; PNG hanya dipakai untuk ikon
+/// aplikasi lewat aset base64 yang di-decode workflow.
+class AppLogoMark extends StatelessWidget {
+  const AppLogoMark({super.key, this.size = 148});
 
   final double size;
 
@@ -782,21 +1046,82 @@ class WifiLogoMark extends StatelessWidget {
         ),
         border: Border.all(color: AppColors.border),
       ),
-      child: CustomPaint(painter: _WifiGlyphPainter()),
+      child: CustomPaint(painter: _LogoAPainter()),
     );
   }
 }
 
-/// Painter glyph WiFi: tiga busur konsentris menghadap ke atas
-/// + titik di pusat busur, gradasi cyan #00E5FF → biru #2979FF →
-/// ungu #B04DFF, ujung busur bulat (round cap).
-class _WifiGlyphPainter extends CustomPainter {
+/// Painter Logo A: (1) cincin gauge — jalur (track) navy terang
+/// di kanan-bawah, busur nilai gradasi sweep cyan → biru → ungu
+/// membentang ±252° dari kiri-bawah lewat atas ke kanan, titik
+/// ujung di kedua ujung busur gradasi; (2) glyph WiFi di tengah:
+/// tiga sektor cincin konsentris menghadap ke atas + titik,
+/// gradasi vertikal cyan → biru → ungu.
+class _LogoAPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    // Pusat busur = posisi titik WiFi (agak di bawah tengah,
-    // karena busur menjulang ke atas dari titik ini).
-    final center = Offset(size.width / 2, size.height * 0.68);
-    final shader = const LinearGradient(
+    final w = size.width;
+    final center = Offset(w / 2, size.height / 2);
+    final ringRadius = w * 0.395;
+    final ringRect = Rect.fromCircle(center: center, radius: ringRadius);
+    final ringStroke = w * 0.030;
+
+    // Sudut kanvas (y ke bawah): 0 = kanan, bertambah searah
+    // jarum jam. Busur gradasi mulai di kiri-bawah (0.75π) dan
+    // menyapu 1.40π lewat kiri → atas → kanan, berakhir ±27°.
+    const startAngle = math.pi * 0.75;
+    const sweepAngle = math.pi * 1.40;
+
+    // Track cincin: sisa busur di kanan-bawah sesudah ujung
+    // gradasi, menyisakan celah kecil di bawah.
+    final trackPaint = Paint()
+      ..color = AppColors.gaugeTrack
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = ringStroke
+      ..strokeCap = StrokeCap.round;
+    canvas.drawArc(
+      ringRect,
+      startAngle + sweepAngle + 0.06,
+      math.pi * 2 - sweepAngle - 0.42,
+      false,
+      trackPaint,
+    );
+
+    // Busur gradasi (sweep gradient mengikuti arah busur).
+    final ringPaint = Paint()
+      ..shader = const SweepGradient(
+        startAngle: startAngle,
+        endAngle: startAngle + sweepAngle,
+        colors: <Color>[
+          AppColors.accent,
+          AppColors.gradientMid,
+          AppColors.gradientEnd,
+        ],
+      ).createShader(ringRect)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = ringStroke
+      ..strokeCap = StrokeCap.round;
+    canvas.drawArc(ringRect, startAngle, sweepAngle, false, ringPaint);
+
+    // Titik ujung busur gradasi (awal cyan, akhir ungu).
+    Offset ringPoint(double a) => Offset(
+          center.dx + ringRadius * math.cos(a),
+          center.dy + ringRadius * math.sin(a),
+        );
+    canvas.drawCircle(
+      ringPoint(startAngle),
+      ringStroke * 0.95,
+      Paint()..color = AppColors.accent,
+    );
+    canvas.drawCircle(
+      ringPoint(startAngle + sweepAngle),
+      ringStroke * 0.95,
+      Paint()..color = AppColors.gradientEnd,
+    );
+
+    // Glyph WiFi: sektor cincin (annular sector) + titik.
+    final glyphCenter = Offset(w / 2, size.height * 0.615);
+    final glyphShader = const LinearGradient(
       begin: Alignment.topCenter,
       end: Alignment.bottomCenter,
       colors: <Color>[
@@ -805,27 +1130,34 @@ class _WifiGlyphPainter extends CustomPainter {
         AppColors.gradientEnd,
       ],
     ).createShader(Offset.zero & size);
-    final arcPaint = Paint()
-      ..shader = shader
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = size.width * 0.085
-      ..strokeCap = StrokeCap.round;
-    // Busur 225° → 315° (lewat 270° = lurus ke atas).
-    for (final r in <double>[0.16, 0.27, 0.38]) {
-      canvas.drawArc(
-        Rect.fromCircle(center: center, radius: size.width * r),
-        math.pi * 1.25,
-        math.pi / 2,
-        false,
-        arcPaint,
-      );
+    final glyphPaint = Paint()..shader = glyphShader;
+    const gStart = math.pi * 1.13;
+    const gSweep = math.pi * 0.74;
+    for (final band in <(double, double)>[
+      (0.335, 0.252),
+      (0.222, 0.152),
+      (0.122, 0.062),
+    ]) {
+      final path = Path()
+        ..addArc(
+          Rect.fromCircle(center: glyphCenter, radius: w * band.$1),
+          gStart,
+          gSweep,
+        )
+        ..arcTo(
+          Rect.fromCircle(center: glyphCenter, radius: w * band.$2),
+          gStart + gSweep,
+          -gSweep,
+          false,
+        )
+        ..close();
+      canvas.drawPath(path, glyphPaint);
     }
-    final dotPaint = Paint()..shader = shader;
-    canvas.drawCircle(center, size.width * 0.055, dotPaint);
+    canvas.drawCircle(glyphCenter, w * 0.047, glyphPaint);
   }
 
   @override
-  bool shouldRepaint(_WifiGlyphPainter oldDelegate) => false;
+  bool shouldRepaint(_LogoAPainter oldDelegate) => false;
 }
 
 /// Gauge setengah lingkaran ala Ookla: busur latar #1B2650 +

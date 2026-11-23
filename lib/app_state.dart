@@ -269,11 +269,23 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  /// Hapus SEMUA SMS perangkat (ALL_DELETE_SMS).
-  Future<String> deleteAllSms() => _smsWrite(
-        () => client.deleteAllSms(),
-        'Semua SMS terhapus.',
-      );
+  /// Hapus SEMUA SMS yang tampil (v3.1): kumpulkan semua id dari
+  /// daftar saat ini lalu kirim SATU DELETE_SMS massal —
+  /// ALL_DELETE_SMS lama terbukti tidak menghapus apa pun.
+  /// Daftar kosong → tidak ada panggilan ke perangkat.
+  Future<String> deleteAllSms() {
+    final ids = <String>[
+      for (final m in smsList ?? const <SmsMessage>[])
+        if (m.id.isNotEmpty) m.id,
+    ];
+    if (ids.isEmpty) {
+      return Future<String>.value('Tidak ada SMS untuk dihapus.');
+    }
+    return _smsWrite(
+      () => client.deleteAllSms(ids),
+      'Semua SMS terhapus.',
+    );
+  }
 
   /// Simpan pengaturan SMS (SET_MESSAGE_CENTER).
   Future<String> saveSmsSettings({

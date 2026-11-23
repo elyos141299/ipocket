@@ -27,7 +27,7 @@ class _AppShellState extends State<AppShell> {
         index: _index,
         children: <Widget>[
           // `active` memberi tahu Beranda kapan tab-nya tampil,
-          // untuk menyalakan/mematikan auto-refresh 5 detik.
+          // untuk menyalakan/mematikan auto-refresh 2 detik.
           StatusScreen(active: _index == 0),
           // Tile SMS/Diagnostik di grid Tools melompat ke tab
           // terkait lewat callback ini.

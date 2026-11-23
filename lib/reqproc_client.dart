@@ -141,6 +141,15 @@ class ReqprocClient {
     'realtime_rx_rate',
     'realtime_time',
     'data_counter',
+    // v3.1: field bulanan & batas data grup status WebUI —
+    // TERBUKTI terisi lewat Probe Persen Baterai v3.0
+    // (monthly_rx_bytes 1.067.155.788, monthly_tx_bytes
+    // 158.831.344 di perangkat user) untuk gauge bulanan asli.
+    'monthly_rx_bytes',
+    'monthly_tx_bytes',
+    'data_volume_limit_switch',
+    'data_volume_limit_size',
+    'data_volume_limit_unit',
     'station_list',
     'lan_station_list',
     'sms_unread_num',
@@ -415,8 +424,8 @@ class ReqprocClient {
       'lib.js persis — "yy;MM;dd;hh;mm;ss;" + zona polos tanpa '
       'zero-pad (WIB "+7") — PASTI, bukan asumsi (definisi '
       'ketemu di lib.js; addendum API-CONTRACT 23 Nov ±15:00). '
-      'Asumsi tersisa di jalur SMS lain: which_cgi ALL_DELETE_SMS '
-      'dan pemetaan save_time SET_MESSAGE_CENTER.',
+      'Asumsi tersisa di jalur SMS lain: pemetaan save_time '
+      'SET_MESSAGE_CENTER.',
     );
     return procPost(
       <String, String>{
@@ -478,26 +487,24 @@ class ReqprocClient {
     );
   }
 
-  /// Hapus SEMUA SMS perangkat: POST ALL_DELETE_SMS
-  /// {notCallback, which_cgi} (notCallback ditambahkan v1.4
-  /// persis bentuk wire WebUI hasil Penemuan Terarah).
-  /// com.js mengisi which_cgi dari `location` halaman WebUI; nilai
-  /// persisnya tidak terbaca dari dump — dipakai "inbox" (kotak
-  /// masuk perangkat yang ditampilkan aplikasi ini) dan hasilnya
-  /// tercatat mentah di log untuk verifikasi.
-  Future<Map<String, dynamic>> deleteAllSms() {
-    log.addNote(
-      'ALL_DELETE_SMS: which_cgi="inbox" adalah tebakan terbaik '
-      '(com.js mengambilnya dari location halaman WebUI; nilai '
-      'persis tidak ada di dump). Periksa result mentah di log.',
-    );
+  /// Hapus SEMUA SMS yang tampil: SATU POST DELETE_SMS massal
+  /// berisi semua id — format persis com.js (msg_id =
+  /// ids.join(";") + ";"), sama seperti [deleteSms] tetapi untuk
+  /// seluruh daftar.
+  ///
+  /// v3.1 MENGGANTIKAN ALL_DELETE_SMS: goform itu terbukti TIDAK
+  /// menghapus apa pun di perangkat user (menjawab result
+  /// "success" tetapi pesan tetap utuh — uji lapangan v3.0),
+  /// sedangkan DELETE_SMS per pesan terbukti bekerja. Pemakaian
+  /// ALL_DELETE_SMS dihapus total.
+  Future<Map<String, dynamic>> deleteAllSms(List<String> ids) {
     return procPost(
       <String, String>{
-        'goformId': 'ALL_DELETE_SMS',
+        'goformId': 'DELETE_SMS',
         'notCallback': 'true',
-        'which_cgi': 'inbox',
+        'msg_id': '${ids.join(';')};',
       },
-      note: 'Hapus semua SMS (ALL_DELETE_SMS)',
+      note: 'Hapus semua SMS (DELETE_SMS massal, ${ids.length} id)',
     );
   }
 

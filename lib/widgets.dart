@@ -4,6 +4,14 @@ import 'theme.dart';
 
 /// Judul seksi kecil uppercase redup (gaya Settings iPhone),
 /// lengkap dengan jarak standar di atas & bawahnya.
+///
+/// Audit v3.1 (temuan rekaman user di Pengaturan Cepat): label
+/// ini selalu dipakai sebagai anak ListView TEPAT DI ATAS kartu
+/// (FormCard/InfoCard/HubGroup) dengan jarak atas AppSpace.xl —
+/// tidak pernah di dalam kartu, jadi tidak bisa menimpa tepi
+/// kartu. Teks yang terlihat menimpa di rekaman ternyata berasal
+/// dari dropdown form-field lama; lihat catatan di
+/// SettingsDropdown.
 class SectionLabel extends StatelessWidget {
   const SectionLabel(this.text, {super.key, this.top = AppSpace.xl});
 
@@ -437,11 +445,54 @@ class SettingsDropdown<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DropdownButtonFormField<T>(
-      value: value,
-      decoration: InputDecoration(labelText: label, helperText: helper),
-      items: items,
-      onChanged: onChanged,
+    // v3.1: BUKAN DropdownButtonFormField lagi. Di rekaman layar
+    // user (Pengaturan Cepat v3.0), field form-field itu saat
+    // fokus menggambar label melayang berlekuk (notch) DAN salinan
+    // teks nilai "WPA2-PSK" muncul menimpa tepi kartu di atasnya.
+    // Implementasi ini panel statis: wadah panel + label kecil
+    // tetap di dalam + DropdownButton polos tanpa InputDecorator
+    // — tidak ada label melayang, tidak ada teks hantu. API &
+    // perilaku (value/items/onChanged) tidak berubah.
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        Container(
+          decoration: const BoxDecoration(
+            color: AppColors.panel,
+            borderRadius: AppRadius.tileBorder,
+          ),
+          padding: const EdgeInsets.fromLTRB(14, 7, 10, 7),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              DropdownButton<T>(
+                value: value,
+                items: items,
+                onChanged: onChanged,
+                isExpanded: true,
+                isDense: true,
+                underline: const SizedBox.shrink(),
+                dropdownColor: AppColors.panel,
+                borderRadius: AppRadius.tileBorder,
+                iconEnabledColor: AppColors.textSecondary,
+                style: AppText.rowTitle,
+              ),
+            ],
+          ),
+        ),
+        if (helper != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 6, left: 2),
+            child: Text(helper!, style: AppText.hint),
+          ),
+      ],
     );
   }
 }

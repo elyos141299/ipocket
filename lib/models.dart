@@ -71,26 +71,31 @@ class DeviceStatus {
   int? get batteryPercent => _i('battery_vol_percent');
 
   /// Level baterai dari battery_pers — skala 0–3, BUKAN persen.
-  /// Bukti uji perangkat asli v1.0 (23 Nov 2026): baterai fisik
-  /// PENUH terbaca "3" → 3 = penuh. battery_vol_percent kosong
-  /// di perangkat ini, jadi level inilah angka baterai yang ada.
+  /// Bukti uji perangkat asli v1.0 (23 Nov 2026): baterai terisi
+  /// penuh terbaca "3" → 3 = tingkat tertinggi skala. Level ini
+  /// KASAR (satu tingkat mencakup rentang persen lebar), jadi
+  /// labelnya pun dibuat jujur per tingkat (lihat
+  /// [batteryLevelLabel] v3.1). battery_vol_percent kosong di
+  /// perangkat ini, jadi level inilah angka baterai yang ada.
   int? get batteryLevel => _i('battery_pers');
 
-  /// Label teks [batteryLevel]: 3 "Penuh", 2 "Tinggi", 1 "Rendah",
-  /// 0 "Habis"; nilai di luar skala 0–3 ditampilkan apa adanya
-  /// sebagai "Level N".
+  /// Label teks [batteryLevel] — pilihan user v3.1: label JUJUR
+  /// per tingkat, TANPA klaim "Penuh" untuk level 3 (level 3
+  /// bukan berarti 100%): 3 "Tinggi", 2 "Sedang", 1 "Rendah",
+  /// 0 "Sangat Rendah"; nilai di luar skala 0–3 ditampilkan apa
+  /// adanya sebagai "Level N".
   String? get batteryLevelLabel {
     final l = batteryLevel;
     if (l == null) return null;
     switch (l) {
       case 3:
-        return 'Penuh';
-      case 2:
         return 'Tinggi';
+      case 2:
+        return 'Sedang';
       case 1:
         return 'Rendah';
       case 0:
-        return 'Habis';
+        return 'Sangat Rendah';
       default:
         return 'Level $l';
     }
@@ -186,6 +191,48 @@ class DeviceStatus {
   /// Total durasi tersambung bulan ini (detik) dari data_counter.
   int? get monthlyConnectedTime =>
       _counterInt('monthlyConnectedTime', 'monthly_connected_time');
+
+  /// Unduh bulan ini (byte) dari field datar `monthly_rx_bytes`
+  /// grup status WebUI — TERBUKTI terisi di perangkat user lewat
+  /// Probe Persen Baterai v3.0 (1.067.155.788), tidak seperti
+  /// data_counter yang kosong. Diminta getStatus mulai v3.1.
+  int? get monthlyRxBytes => _i('monthly_rx_bytes');
+
+  /// Unggah bulan ini (byte) dari `monthly_tx_bytes` (probe yang
+  /// sama: 158.831.344).
+  int? get monthlyTxBytes => _i('monthly_tx_bytes');
+
+  /// Total pemakaian bulan ini (unduh + unggah, byte). Sumber
+  /// utama field datar monthly_*_bytes; bila keduanya kosong,
+  /// jatuh ke angka data_counter ([monthlyReceived] /
+  /// [monthlySent]) bila ada.
+  int? get monthlyTotalBytes {
+    final rx = monthlyRxBytes ?? monthlyReceived;
+    final tx = monthlyTxBytes ?? monthlySent;
+    if (rx == null && tx == null) return null;
+    return (rx ?? 0) + (tx ?? 0);
+  }
+
+  /// Batas pemakaian data bulanan dalam BYTE, mengikuti hitungan
+  /// WebUI (com.js) PERSIS: hanya berlaku bila
+  /// data_volume_limit_switch == "1" DAN data_volume_limit_unit
+  /// == "data" (string, BUKAN kode angka); ukuran tersimpan
+  /// berformat "<n>_<pengali>" dan byte = n × pengali ×
+  /// 1024 × 1024. Unit "time" berarti batas berbasis WAKTU
+  /// (size = jam) — tidak bisa dibandingkan dengan byte, jadi
+  /// null. Null juga bila batas nonaktif / ukuran tak terbaca.
+  int? get dataLimitBytes {
+    if (_s('data_volume_limit_switch') != '1') return null;
+    if (_s('data_volume_limit_unit') != 'data') return null;
+    final size = _s('data_volume_limit_size');
+    if (size == null) return null;
+    final parts = size.split('_');
+    final n = int.tryParse(parts.first.trim());
+    if (n == null || n <= 0) return null;
+    final mult =
+        parts.length > 1 ? (int.tryParse(parts[1].trim()) ?? 1) : 1;
+    return n * mult * 1024 * 1024;
+  }
 
   int? _countStations(dynamic v) {
     if (v == null) return null;

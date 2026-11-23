@@ -37,6 +37,10 @@ class AppColors {
   /// ikon aksen).
   static const Color primary = Color(0xFF00C2FF);
 
+  /// Teks/ikon DI ATAS permukaan primary (tombol cyan) — navy
+  /// sangat gelap agar kontras di atas cyan terang.
+  static const Color onPrimary = Color(0xFF04121F);
+
   /// Ujung terang gradasi (cyan muda) — ikon aksen & gradasi.
   static const Color accent = Color(0xFF00E5FF);
 
@@ -146,9 +150,18 @@ class AppText {
 /// bertipe AppBarTheme (TANPA "Data"), cardTheme bertipe
 /// CardThemeData (DENGAN "Data") — jangan tertukar.
 ThemeData buildAppTheme() {
+  // PERBAIKAN v3.1: ColorScheme.fromSeed dalam mode gelap
+  // menurunkan primary menjadi nada TERANG dari seed — itulah
+  // sebabnya FilledButton di seluruh aplikasi tampil biru pucat
+  // bawaan Material (temuan screenshot user v3.0). Timpa primary
+  // & onPrimary secara eksplisit ke cyan Ookla + navy gelap, dan
+  // kunci gaya FilledButton lewat filledButtonTheme.
   final scheme = ColorScheme.fromSeed(
     seedColor: AppColors.primary,
     brightness: Brightness.dark,
+  ).copyWith(
+    primary: AppColors.primary,
+    onPrimary: AppColors.onPrimary,
   );
   return ThemeData(
     colorScheme: scheme,
@@ -189,6 +202,27 @@ ThemeData buildAppTheme() {
       labelStyle: TextStyle(color: AppColors.textSecondary),
       hintStyle: TextStyle(color: AppColors.textFaint),
       contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+    ),
+    filledButtonTheme: FilledButtonThemeData(
+      style: FilledButton.styleFrom(
+        backgroundColor: AppColors.primary,
+        foregroundColor: AppColors.onPrimary,
+        disabledBackgroundColor: AppColors.gaugeTrack,
+        disabledForegroundColor: AppColors.textFaint,
+        shape: const RoundedRectangleBorder(
+          borderRadius: AppRadius.tileBorder,
+        ),
+        textStyle: const TextStyle(
+          fontSize: 14.5,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    ),
+    popupMenuTheme: const PopupMenuThemeData(
+      color: AppColors.panel,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: AppRadius.tileBorder),
+      textStyle: AppText.rowTitle,
     ),
     snackBarTheme: const SnackBarThemeData(
       backgroundColor: AppColors.panel,

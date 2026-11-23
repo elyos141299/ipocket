@@ -3,14 +3,23 @@ import 'package:flutter/material.dart';
 import '../app_state.dart';
 import '../models.dart';
 import '../theme.dart';
+import '../widgets.dart';
 
 /// Layar SMS PENUH (Gelombang A): daftar dari sms_data_total
 /// (content di-decode hex UTF-16BE di model), kirim (SEND_SMS),
 /// simpan draf (SAVE_SMS), hapus per pesan (DELETE_SMS), tandai
-/// dibaca saat dibuka (SET_MSG_READ), hapus semua
-/// (ALL_DELETE_SMS), dan pengaturan SMS (SET_MESSAGE_CENTER).
+/// dibaca saat dibuka (SET_MSG_READ), hapus semua (DELETE_SMS
+/// massal berisi semua id — v3.1; ALL_DELETE_SMS lama terbukti
+/// tidak menghapus apa pun), dan pengaturan SMS
+/// (SET_MESSAGE_CENTER).
 /// Semua aksi tulis mencatat respons mentah ke log Diagnostik
 /// lewat klien, dan daftar disegarkan setelah sukses.
+///
+/// v3.1 — poles profesional: header rapi (kapasitas kiri +
+/// tombol segarkan ikon kanan), satu baris aksi bertema
+/// (Tulis SMS cyan, Pengaturan SMS outline navy, Hapus Semua
+/// outline merah lembut), pesan sebagai kartu berjarak,
+/// keadaan kosong terpusat berikon.
 class SmsScreen extends StatefulWidget {
   const SmsScreen({super.key});
 
@@ -218,40 +227,55 @@ class _SmsScreenState extends State<SmsScreen> {
       listenable: state,
       builder: (context, _) {
         final canWrite = state.loggedIn && !state.busy;
+        // Hapus Semua hanya aktif bila memang ada pesan —
+        // daftar kosong membuatnya nonaktif (v3.1).
+        final hasMessages = (state.smsList?.isNotEmpty ?? false);
         return Column(
           children: <Widget>[
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+              padding: const EdgeInsets.fromLTRB(16, 10, 8, 2),
               child: Row(
                 children: <Widget>[
-                  FilledButton.icon(
+                  Expanded(
+                    child: Text(
+                      _capacityText(state),
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                  IconButton(
                     onPressed: canWrite ? () => state.refreshSms() : null,
                     icon: const Icon(Icons.refresh),
-                    label: const Text('Segarkan'),
+                    tooltip: 'Segarkan',
+                    color: AppColors.primary,
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(child: Text(_capacityText(state))),
                 ],
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+              padding: const EdgeInsets.fromLTRB(16, 2, 16, 8),
               child: Wrap(
                 spacing: 8,
                 runSpacing: 8,
                 children: <Widget>[
                   FilledButton.icon(
                     onPressed: canWrite ? _showCompose : null,
-                    icon: const Icon(Icons.edit),
+                    icon: const Icon(Icons.edit, size: 18),
                     label: const Text('Tulis SMS'),
                   ),
                   OutlinedButton.icon(
                     onPressed: canWrite ? _showSettings : null,
-                    icon: const Icon(Icons.settings),
+                    icon: const Icon(Icons.settings, size: 18),
                     label: const Text('Pengaturan SMS'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.textPrimary,
+                      side: const BorderSide(color: AppColors.border),
+                    ),
                   ),
                   OutlinedButton.icon(
-                    onPressed: canWrite
+                    onPressed: canWrite && hasMessages
                         ? () async {
                             final ok = await _confirm(
                               title: 'Hapus semua SMS?',
@@ -262,8 +286,16 @@ class _SmsScreenState extends State<SmsScreen> {
                             if (ok) _snack(await state.deleteAllSms());
                           }
                         : null,
-                    icon: const Icon(Icons.delete_sweep),
+                    icon: const Icon(Icons.delete_sweep, size: 18),
                     label: const Text('Hapus Semua'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.danger,
+                      side: BorderSide(
+                        color: AppColors.danger.withValues(alpha: 0.55),
+                      ),
+                      disabledForegroundColor:
+                          AppColors.danger.withValues(alpha: 0.35),
+                    ),
                   ),
                 ],
               ),
@@ -286,35 +318,24 @@ class _SmsScreenState extends State<SmsScreen> {
 
   Widget _body(BuildContext context, AppState state) {
     if (!state.loggedIn) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(24),
-          child: Text(
-            'Masuk dulu di tab Beranda untuk melihat SMS di MiFi-mu.',
-            textAlign: TextAlign.center,
-          ),
-        ),
+      return const EmptyState(
+        icon: Icons.lock_outline,
+        message: 'Masuk dulu di tab Beranda untuk melihat SMS '
+            'di MiFi-mu.',
       );
     }
     final list = state.smsList;
     if (list == null) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(24),
-          child: Text('SMS belum dimuat. Tekan "Segarkan".'),
-        ),
+      return const EmptyState(
+        icon: Icons.sms_outlined,
+        message: 'SMS belum dimuat. Tekan tombol segarkan di atas.',
       );
     }
     if (list.isEmpty) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(24),
-          child: Text(
-            'Belum ada SMS di perangkat.\n'
+      return const EmptyState(
+        icon: Icons.sms_outlined,
+        message: 'Belum ada SMS di perangkat.\n'
             'Pesan yang masuk ke nomor SIM MiFi akan tampil di sini.',
-            textAlign: TextAlign.center,
-          ),
-        ),
       );
     }
     return ListView.builder(
@@ -323,8 +344,10 @@ class _SmsScreenState extends State<SmsScreen> {
       itemBuilder: (context, i) {
         final m = list[i];
         final unread = m.isUnread;
-        return Card(
-          child: ListTile(
+        return Padding(
+          padding: const EdgeInsets.only(bottom: AppSpace.sm),
+          child: Card(
+            child: ListTile(
             onTap: unread && !state.busy
                 ? () => state.markSmsRead(m)
                 : null,
@@ -392,6 +415,7 @@ class _SmsScreenState extends State<SmsScreen> {
                       );
                       if (ok) _snack(await state.deleteSms(m));
                     },
+            ),
             ),
           ),
         );
